@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2022 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -39,10 +39,10 @@
  *  This is the main implementation file for the NFA EE.
  *
  ******************************************************************************/
-#include <string>
-
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
+
+#include <string>
 
 #include "nfa_dm_int.h"
 #include "nfa_ee_int.h"
@@ -99,7 +99,9 @@ const tNFA_EE_SM_ACT nfa_ee_actions[] = {
     nfa_ee_rout_timeout,        /* NFA_EE_ROUT_TIMEOUT_EVT      */
     nfa_ee_discv_timeout,       /* NFA_EE_DISCV_TIMEOUT_EVT     */
     nfa_ee_lmrt_to_nfcc,          /* NFA_EE_CFG_TO_NFCC_EVT       */
+#if (NXP_EXTNS == TRUE)
     nfa_ee_nci_nfcee_status_ntf,  /*NFA_EE_NCI_NFCEE_STATUS_NTF_EVT*/
+#endif
     nfa_ee_pwr_and_link_ctrl_rsp  /* NFA_EE_PWR_CONTROL_EVT */
 };
 
@@ -193,6 +195,9 @@ void nfa_ee_restore_one_ecb(tNFA_EE_ECB* p_cb) {
   tNFC_NFCEE_MODE_SET_REVT rsp;
   tNFA_EE_NCI_MODE_SET ee_msg;
 
+#if (NXP_EXTNS == TRUE)
+  memset(&ee_msg, 0, sizeof(tNFA_EE_NCI_MODE_SET));
+#endif
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "nfcee_id:0x%x, ecb_flags:0x%x ee_status:0x%x "
       "ee_old_status: 0x%x",

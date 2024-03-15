@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2020 NXP
+ *  Copyright 2018-2022 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -45,12 +45,11 @@
 
 #include <stdint.h>
 
-/* Define the message header size for all NCI Commands and Notifications.
-*/
+/* Define the message header size for all NCI Commands and Notifications. */
 #define NCI_MSG_HDR_SIZE 3  /* per NCI spec */
 #define NCI_DATA_HDR_SIZE 3 /* per NCI spec */
 #define NCI_MAX_PAYLOAD_SIZE 0xFE
-#define NCI_CTRL_INIT_SIZE 32  /* initial NFCC control payload size */
+#define NCI_CTRL_INIT_SIZE 32 /* initial NFCC control payload size */
 #define NCI_MAX_VSC_SIZE 0xFF
 #if (NXP_EXTNS == TRUE)
 #define APPL_DTA_MODE TRUE
@@ -276,11 +275,10 @@
 #define NCI_CON_CREATE_TAG_RF_DISC_ID 0x00
 #define NCI_CON_CREATE_TAG_NFCEE_VAL 0x01
 
-#define NCI_CORE_PARAM_SIZE_CON_CLOSE 0x01     /* Conn ID (1 octet) */
-#if (NXP_EXTNS == TRUE)
-/* Keep the NCI configuration (if possible) and perform NCI initialization. */
+#define NCI_CORE_PARAM_SIZE_CON_CLOSE 0x01 /* Conn ID (1 octet) */
+
+/* Keep the NCI configuration and perform NCI initialization. */
 #define NCI_RESET_TYPE_KEEP_CFG 0x00
-#endif
 /* Reset the NCI configuration, and perform NCI initialization. */
 #define NCI_RESET_TYPE_RESET_CFG 0x01
 
@@ -296,12 +294,14 @@
 #define NCI_DISCOVER_ACTION_DISABLE 0
 #define NCI_DISCOVER_ACTION_ENABLE 1
 
-#define NCI_RF_PARAM_ID_TECH_N_MODE 0x00 /* RF Technology and Mode   */
-#define NCI_RF_PARAM_ID_TX_BIT_RATE 0x01 /* Transmit Bit Rate        */
-#define NCI_RF_PARAM_ID_RX_BIT_RATE 0x02 /* Receive Bit Rate         */
-#define NCI_RF_PARAM_ID_B_DATA_EX_PARAM \
-  0x03 /* B Data Exchange config param  \
-          */
+/* RF Technology and Mode */
+#define NCI_RF_PARAM_ID_TECH_N_MODE 0x00
+/* Transmit Bit Rate */
+#define NCI_RF_PARAM_ID_TX_BIT_RATE 0x01
+/* Receive Bit Rate */
+#define NCI_RF_PARAM_ID_RX_BIT_RATE 0x02
+/* B Data Exchange config param */
+#define NCI_RF_PARAM_ID_B_DATA_EX_PARAM 0x03
 #if (NXP_EXTNS == TRUE)
 /****************************************************
  * NCI NFCEE status
@@ -369,8 +369,8 @@ typedef uint8_t tNCI_EE_NTF_STATUS;
 typedef uint8_t tNCI_NFCEE_PL_CONFIG;
 
 /**********************************************
-* NCI Interface Mode
-**********************************************/
+ * NCI Interface Mode
+ **********************************************/
 #if (NXP_EXTNS == TRUE)
 #define NCI_INTERFACE_MODE_POLL 1
 #define NCI_INTERFACE_MODE_LISTEN 2
@@ -403,8 +403,8 @@ typedef uint8_t tNCI_INTF_TYPE;
  * NCI RF Management / DISCOVERY Group Params
  **********************************************/
 
-#define NCI_DISCOVER_PARAM_SIZE_SELECT 0x03     /* ID, protocol, interface */
-#define NCI_DISCOVER_PARAM_SIZE_DEACT 0x01      /* type */
+#define NCI_DISCOVER_PARAM_SIZE_SELECT 0x03 /* ID, protocol, interface */
+#define NCI_DISCOVER_PARAM_SIZE_DEACT 0x01  /* type */
 
 /**********************************************
  * Supported Protocols
@@ -419,7 +419,6 @@ typedef uint8_t tNCI_INTF_TYPE;
 
 #if (NXP_EXTNS == TRUE)
 #define NCI_PROTOCOL_ISO7816 0xA0
-#define NCI_PROTOCOL_MFC 0x80
 
 /**********************************************
  * Proprietary Protocols
@@ -436,6 +435,9 @@ typedef uint8_t tNCI_INTF_TYPE;
 #define NCI_DISCOVERY_TYPE_POLL_V 0x06
 #if (NXP_EXTNS == TRUE)
 #define NCI_DISCOVERY_TYPE_POLL_WLC 0x73
+#if (NXP_QTAG == TRUE)
+#define NCI_DISCOVERY_TYPE_POLL_Q 0x71
+#endif
 #endif
 #define NCI_DISCOVERY_TYPE_POLL_A_ACTIVE 0x03
 /* NCI2.0 standardizes P2P poll active*/
@@ -461,8 +463,14 @@ typedef uint8_t tNCI_DISCOVERY_TYPE;
 #define NCI_EE_TRIG_RF_TECHNOLOGY 0x02
 #define NCI_EE_TRIG_APP_INIT 0x10
 
-#define NCI_EE_ACT_TAG_AID 0xC0   /* AID                 */
-#define NCI_EE_ACT_TAG_DATA 0xC3  /* hex data for app    */
+#if (NXP_EXTNS == TRUE)
+#define NCI_EE_TRIG_PROP_RSP_NTF 0xF2
+#define NCI_EE_TRIG_RF_PROT_PROP_RSP_NTF 0xF0
+#define NCI_EE_TRIG_RF_TECH_PROP_RSP_NTF 0xF1
+#endif
+
+#define NCI_EE_ACT_TAG_AID 0xC0  /* AID                 */
+#define NCI_EE_ACT_TAG_DATA 0xC3 /* hex data for app    */
 
 /* NFCEE ID (1 octet) PL config (1 octet) */
 #define NCI_CORE_PARAM_SIZE_NFCEE_PL_CTRL 0x02
@@ -471,7 +479,7 @@ typedef uint8_t tNCI_DISCOVERY_TYPE;
 #define NCI_ROUTE_TAG_TECH 0x00
 /* Protocol based routing  */
 #define NCI_ROUTE_TAG_PROTO 0x01
-#define NCI_ROUTE_TAG_AID 0x02 /* AID routing */
+#define NCI_ROUTE_TAG_AID 0x02     /* AID routing */
 #define NCI_ROUTE_TAG_SYSCODE 0x03 /* SystemCode routing */
 #if (NXP_EXTNS == TRUE)
 #define NCI_ROUTE_TAG_APDU 0x4 /* APDU routing*/
@@ -684,6 +692,20 @@ typedef struct {
   uint8_t hr[NCI_T1T_HR_LEN]; /* T1T HR0 is in hr[0], HR1 is in hr[1] */
 } tNCI_RF_PA_PARAMS;
 
+#if (NXP_EXTNS == TRUE)
+#if (NXP_QTAG == TRUE)
+typedef struct {
+  uint8_t sens_res[2]; /* SENS_RES Response (ATQA). Available after Technology
+                          Detection */
+  uint8_t nfcid1_len;  /* 4, 7 or 10 */
+  uint8_t nfcid1[NCI_NFCID1_MAX_LEN]; /* AKA NFCID1 */
+  uint8_t sel_rsp; /* SEL_RSP (SAK) Available after Collision Resolution */
+  uint8_t hr_len;  /* 2, if T1T HR0/HR1 is reported */
+  uint8_t hr[NCI_T1T_HR_LEN]; /* T1T HR0 is in hr[0], HR1 is in hr[1] */
+} tNCI_RF_PQ_PARAMS;
+#endif
+#endif
+
 #define NCI_MAX_SENSB_RES_LEN 12
 typedef struct {
   uint8_t sensb_res_len; /* Length of SENSB_RES Response (Byte 2 - Byte 12 or
@@ -730,7 +752,9 @@ typedef struct {
   uint8_t ats_res[NCI_MAX_ATS_LEN]; /* ATS RES defined in [DIGPROT] */
 } tNCI_INTF_PA_ISO_DEP;
 
-typedef struct { uint8_t rats; /* RATS */ } tNCI_INTF_LA_ISO_DEP;
+typedef struct {
+  uint8_t rats; /* RATS */
+} tNCI_INTF_LA_ISO_DEP;
 
 #define NCI_P_GEN_BYTE_INDEX 15
 #define NCI_L_GEN_BYTE_INDEX 14

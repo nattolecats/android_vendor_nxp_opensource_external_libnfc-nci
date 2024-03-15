@@ -2,8 +2,6 @@
  *
  *  Copyright (C) 1999-2012 Broadcom Corporation
  *
- *  Copyright 2019 NXP
- *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at:
@@ -17,8 +15,27 @@
  *  limitations under the License.
  *
  ******************************************************************************/
+/******************************************************************************
+ *
+ *  Copyright 2019,2021 NXP
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ *
+ ******************************************************************************/
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
+
 #include "gki_int.h"
 
 /* Make sure that this has been defined in target.h */
@@ -190,6 +207,12 @@ void GKI_start_timer(uint8_t tnum, int32_t ticks, bool is_continuous) {
   uint8_t task_id = GKI_get_taskid();
   bool bad_timer = false;
 
+  if (task_id >= GKI_MAX_TASKS) {
+    LOG(ERROR) << StringPrintf("%s: invalid task_id:0x%02x. start timer failed",
+                               __func__, task_id);
+    return;
+  }
+
   if (ticks <= 0) ticks = 1;
 
   orig_ticks = ticks; /* save the ticks in case adjustment is necessary */
@@ -288,7 +311,6 @@ void GKI_stop_timer(uint8_t tnum) {
   uint8_t task_id = GKI_get_taskid();
 
   GKI_disable();
-
   if (task_id < GKI_MAX_TASKS) {
     switch (tnum) {
 #if (GKI_NUM_TIMERS > 0)
@@ -678,13 +700,21 @@ uint16_t GKI_update_timer_list(TIMER_LIST_Q* p_timer_listq,
     p_timer_listq->last_ticks -= num_units_since_last_update;
 
     /* If the last timer has expired set last_ticks to 0 so that other list
-    * update
-    * functions will calculate correctly
-    */
+     * update
+     * functions will calculate correctly
+     */
     if (p_timer_listq->last_ticks < 0) p_timer_listq->last_ticks = 0;
   }
 
   return (num_time_out);
+}
+
+bool GKI_timer_list_empty(TIMER_LIST_Q* p_timer_listq) {
+  return p_timer_listq->p_first == nullptr;
+}
+
+TIMER_LIST_ENT* GKI_timer_list_first(TIMER_LIST_Q* p_timer_listq) {
+  return p_timer_listq->p_first;
 }
 
 /*******************************************************************************
@@ -862,19 +892,20 @@ void GKI_remove_from_timer_list(TIMER_LIST_Q* p_timer_listq,
     p_timer_listq->last_ticks -= p_tle->ticks;
   }
 
-  /* Unlink timer from the list.
-  */
+  /* Unlink timer from the list. */
   if (p_timer_listq->p_first == p_tle) {
     p_timer_listq->p_first = p_tle->p_next;
 
-    if (p_timer_listq->p_first != nullptr) p_timer_listq->p_first->p_prev = nullptr;
+    if (p_timer_listq->p_first != nullptr)
+      p_timer_listq->p_first->p_prev = nullptr;
 
     if (p_timer_listq->p_last == p_tle) p_timer_listq->p_last = nullptr;
   } else {
     if (p_timer_listq->p_last == p_tle) {
       p_timer_listq->p_last = p_tle->p_prev;
 
-      if (p_timer_listq->p_last != nullptr) p_timer_listq->p_last->p_next = nullptr;
+      if (p_timer_listq->p_last != nullptr)
+        p_timer_listq->p_last->p_next = nullptr;
     } else {
       if (p_tle->p_next != nullptr && p_tle->p_next->p_prev == p_tle)
         p_tle->p_next->p_prev = p_tle->p_prev;
@@ -904,6 +935,9 @@ void GKI_remove_from_timer_list(TIMER_LIST_Q* p_timer_listq,
         break;
       }
     }
+    /* Recovering from unexpected state.
+       e.g. when TIMER_LIST_ENT is cleared before stop */
+    if (p_timer_listq->last_ticks) p_timer_listq->last_ticks = 0;
   }
 
   return;

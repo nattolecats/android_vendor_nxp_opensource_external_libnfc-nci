@@ -32,7 +32,6 @@
  ******************************************************************************/
 
 #include "nfc_config.h"
-#include "NfcAdaptation.h"
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
@@ -45,6 +44,8 @@
 
 #include <config.h>
 
+#include "NfcAdaptation.h"
+
 using namespace ::std;
 using namespace ::android::base;
 #if(NXP_EXTNS == TRUE)
@@ -53,7 +54,7 @@ using namespace ::android::base;
 namespace {
 std::string searchConfigPath(std::string file_name) {
   const std::vector<std::string> search_path = {
-      "/product/etc/", "/odm/etc/", "/vendor/etc/", "/system_ext/etc/", "/etc/",
+      "/odm/etc/", "/vendor/etc/", "/system_ext/etc/", "/etc/", "/product/etc/", //To pick the correct config file from /vendor/etc/
   };
   for (std::string path : search_path) {
     path.append(file_name);

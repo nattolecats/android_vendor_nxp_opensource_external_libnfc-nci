@@ -29,17 +29,20 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 *
-*  Copyright 2020 NXP
+*  Copyright 2020-2021 NXP
 *
 ******************************************************************************/
 #pragma once
 #include <pthread.h>
+#include <utils/RefBase.h>
 
 #include "config.h"
 #include "nfc_hal_api.h"
 #include "nfc_target.h"
 
-#include <utils/RefBase.h>
+#if (NXP_EXTNS == TRUE)
+#include <semaphore.h>
+#endif
 
 using ::android::sp;
 
@@ -49,21 +52,17 @@ namespace nfc {
 namespace V1_0 {
 struct INfc;
 struct INfcClientCallback;
-}
+}  // namespace V1_0
 namespace V1_1 {
 struct INfc;
 struct INfcClientCallback;
-}
+}  // namespace V1_1
 namespace V1_2 {
 struct INfc;
-} } } }
-
-/*
- * Uncomment define ENABLE_ESE_CLIENT to
- * enable eSE client
- */
-//#define ENABLE_ESE_CLIENT TRUE
-
+}
+}  // namespace nfc
+}  // namespace hardware
+}  // namespace android
 #if (NXP_EXTNS == TRUE)
 namespace vendor {
 namespace nxp {
@@ -72,9 +71,18 @@ namespace nfc {
 namespace V2_0 {
 struct INqNfc;
 } } } } }
-
+namespace aidl {
+namespace vendor {
+namespace nxp {
+namespace nxpnfc_aidl {
+class INxpNfc;
+}
+}
+}
+}
 typedef void(tNFC_JNI_FWSTATUS_CBACK)(uint8_t status);
 #endif
+
 class ThreadMutex {
  public:
   ThreadMutex();
@@ -159,20 +167,24 @@ class NfcAdaptation {
   static android::sp<android::hardware::nfc::V1_0::INfc> mHal;
   static android::sp<android::hardware::nfc::V1_1::INfc> mHal_1_1;
   static android::sp<android::hardware::nfc::V1_2::INfc> mHal_1_2;
+#if (NXP_EXTNS == TRUE)
   static android::sp<vendor::nxp::hardware::nfc::V2_0::INqNfc> mNqHal_2_0;
+  static std::shared_ptr<::aidl::vendor::nxp::nxpnfc_aidl::INxpNfc> mAidlHalNxpNfc;
+#endif
   static android::hardware::nfc::V1_1::INfcClientCallback* mCallback;
   sp<NfcHalDeathRecipient> mNfcHalDeathRecipient;
   static tHAL_NFC_CBACK* mHalCallback;
   static tHAL_NFC_DATA_CBACK* mHalDataCallback;
   static ThreadCondVar mHalOpenCompletedEvent;
 #if (NXP_EXTNS == TRUE)
-  static ThreadCondVar mHalDataCallbackEvent;
+  static sem_t mSemHalDataCallBackEvent;
 #endif
   static ThreadCondVar mHalCloseCompletedEvent;
 
   static uint32_t NFCA_TASK(uint32_t arg);
   static uint32_t Thread(uint32_t arg);
   void InitializeHalDeviceContext();
+  static void InitializeAidlHalContext();
   static void HalDeviceContextCallback(nfc_event_t event,
                                        nfc_status_t event_status);
   static void HalDeviceContextDataCallback(uint16_t data_len, uint8_t* p_data);
@@ -197,4 +209,9 @@ class NfcAdaptation {
                                           nfc_status_t event_status);
   static void HalDownloadFirmwareDataCallback(uint16_t data_len,
                                               uint8_t* p_data);
+
+  // Death recipient callback that is called when INfcAidl dies.
+  // The cookie is a pointer to a NfcAdaptation object.
+  static void HalAidlBinderDied(void* cookie);
+  void HalAidlBinderDiedImpl();
 };

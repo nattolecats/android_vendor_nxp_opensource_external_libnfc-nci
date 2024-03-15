@@ -666,24 +666,7 @@ static void llcp_dlc_proc_connect_pdu(uint8_t dsap, uint8_t ssap,
      * i'e with improper length and service name "urn:nfc:sn:dta-co-echo-in",
      * the IUT should not send any PDU except SYMM PDU */
 
-#if (NXP_EXTNS != TRUE)
-    if (appl_dta_mode_flag == 1 &&
-        p_data[1] == strlen((const char*)&p_data[2])) {
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: Strings are not equal", __func__);
-      llcp_util_send_dm(ssap, dsap, LLCP_SAP_DM_REASON_NO_SERVICE);
-#else
-     if (appl_dta_mode_flag == 1) {
-       /* p_data is a TLV (Tag, Length, Value) */
-       if(p_data[1] == strlen((const char*)&p_data[2])) {
-         DLOG_IF(INFO, nfc_debug_enabled)
-             << StringPrintf("%s: Length & Tag fields are not equal", __func__);
-         llcp_util_send_dm(ssap, dsap, LLCP_SAP_DM_REASON_NO_SERVICE);
-       }
-#endif
-    } else {
-      llcp_util_send_dm(ssap, dsap, LLCP_SAP_DM_REASON_NO_SERVICE);
-    }
+    llcp_util_send_dm(ssap, dsap, LLCP_SAP_DM_REASON_NO_SERVICE);
     return;
   }
 
@@ -734,8 +717,9 @@ static void llcp_dlc_proc_connect_pdu(uint8_t dsap, uint8_t ssap,
   /* check if any data link */
   p_dlcb = llcp_dlc_find_dlcb_by_sap(dsap, ssap);
   if (p_dlcb) {
-    LOG(ERROR) << StringPrintf("Data link is aleady established");
-    llcp_util_send_dm(ssap, dsap, LLCP_SAP_DM_REASON_TEMP_REJECT_THIS);
+    LOG(ERROR) << StringPrintf("Data link is aleady established; Sending FRMR");
+    llcp_util_send_frmr(p_dlcb, LLCP_FRMR_W_ERROR_FLAG, LLCP_PDU_CONNECT_TYPE, 0);
+    llcp_dlsm_execute(p_dlcb, LLCP_DLC_EVENT_FRAME_ERROR, nullptr);
   } else {
     /* allocate data link connection control block and notify upper layer
      * through state machine */

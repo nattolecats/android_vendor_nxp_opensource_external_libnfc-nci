@@ -31,7 +31,15 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2021, 2023 NXP
+ *
+ ******************************************************************************/
+ /******************************************************************************
+ *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
  *
  ******************************************************************************/
 
@@ -66,6 +74,8 @@
 #if (NFC_RW_ONLY == FALSE)
 
 #include "llcp_int.h"
+
+
 
 /* NFC mandates support for at least one logical connection;
  * Update max_conn to the NFCC capability on InitRsp */
@@ -106,10 +116,10 @@ static tNFC_chipType chipType;
 tNFC_chipType ProcessChipType(tNFC_FW_VERSION nfc_fw_version);
 /*product[] will be used to print product version and
 should be kept in accordance with tNFC_chipType*/
-const char* product[13] = {"UNKNOWN", "PN547C2", "PN65T", "PN548C2",
+const char* product[14] = {"UNKNOWN", "PN547C2", "PN65T", "PN548C2",
                            "PN66T",   "PN551",   "PN67T", "PN553",
                            "PN80T",   "PN557",   "PN81T",  "SN100U",
-                           "SN220U"};
+                           "SN220U", "SN300U"};
 #endif
 #if (NFC_RW_ONLY == FALSE)
 #if (NXP_EXTNS == TRUE)
@@ -203,7 +213,7 @@ static std::string nfc_hal_event_name(uint8_t event) {
       return "HAL_NFC_RELEASE_CONTROL_EVT";
     case HAL_NFC_ERROR_EVT:
       return "HAL_NFC_ERROR_EVT";
-    case (uint32_t)NfcEvent::HCI_NETWORK_RESET:
+    case HAL_HCI_NETWORK_RESET:
       return "HCI_NETWORK_RESET";
 #if (NXP_EXTNS == TRUE)
     case HAL_NFC_FW_UPDATE_STATUS_EVT:
@@ -509,10 +519,15 @@ void nfc_main_handle_hal_evt(tNFC_HAL_EVT_MSG* p_msg) {
       break;
 
     case HAL_NFC_POST_INIT_CPLT_EVT:
-      if (NfcAdaptation::GetInstance().NFA_GetBootMode() == NFC_FAST_BOOT_MODE) {
-          nfc_set_state(NFC_STATE_IDLE);
-          nfa_sys_cback_notify_MinEnable_complete(0);
-      }else if (nfc_cb.p_nci_init_rsp) {
+#if (NXP_EXTNS == TRUE)
+      if (NfcAdaptation::GetInstance().NFA_GetBootMode() ==
+          NFC_FAST_BOOT_MODE) {
+        nfc_set_state(NFC_STATE_IDLE);
+        nfa_sys_cback_notify_MinEnable_complete(0);
+      } else if (nfc_cb.p_nci_init_rsp) {
+#else
+      if (nfc_cb.p_nci_init_rsp) {
+#endif
         /*
         ** if NFC_Disable() is called before receiving
         ** HAL_NFC_POST_INIT_CPLT_EVT, then wait for HAL_NFC_CLOSE_CPLT_EVT.
@@ -593,8 +608,12 @@ void nfc_main_handle_hal_evt(tNFC_HAL_EVT_MSG* p_msg) {
             return;
           }
           break;
+        case HAL_NFC_STATUS_FAILED:
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s; TZ HAL event to switch OFF NFC", __func__);
+          nfc_ncif_event_status(NFC_TZ_SECURE_ZONE_DISABLE_NFC_REVT, HAL_NFC_STATUS_FAILED); /* must trig NFA_DM_TZ_SECURE_ZONE_DISABLE_NFC_EVT */
+          break;
 #if (NXP_EXTNS == FALSE)
-        case (uint32_t)NfcEvent::HCI_NETWORK_RESET:
+        case HAL_HCI_NETWORK_RESET:
           delete_stack_non_volatile_store(true);
           break;
 #endif
@@ -603,7 +622,7 @@ void nfc_main_handle_hal_evt(tNFC_HAL_EVT_MSG* p_msg) {
       }
       break;
 #if (NXP_EXTNS == TRUE)
-    case (uint32_t)NfcEvent::HCI_NETWORK_RESET:
+    case HAL_HCI_NETWORK_RESET:
       delete_stack_non_volatile_store(true);
       break;
 #endif
@@ -736,7 +755,7 @@ static void nfc_main_hal_cback(uint8_t event, tHAL_NFC_STATUS status) {
     case HAL_NFC_REQUEST_CONTROL_EVT:
     case HAL_NFC_RELEASE_CONTROL_EVT:
     case HAL_NFC_ERROR_EVT:
-    case (uint32_t)NfcEvent::HCI_NETWORK_RESET:
+    case HAL_HCI_NETWORK_RESET:
       nfc_main_post_hal_evt(event, status);
       break;
 #if (NXP_EXTNS == TRUE)
@@ -914,6 +933,8 @@ void NFC_Init(tHAL_NFC_ENTRY* p_hal_entry_tbl) {
   }
   if (NfcAdaptation::GetInstance().NFA_GetBootMode() == NFC_NORMAL_BOOT_MODE) {
 #endif
+  GKI_init_timer_list(&nfc_cb.timer_queue);
+  GKI_init_timer_list(&nfc_cb.quick_timer_queue);
   rw_init();
   ce_init();
   llcp_init();
@@ -1317,9 +1338,11 @@ tNFC_STATUS NFC_SendData(uint8_t conn_id, NFC_HDR* p_data) {
       p_data->offset >= NCI_MSG_OFFSET_SIZE + NCI_DATA_HDR_SIZE) {
     status = nfc_ncif_send_data(p_cb, p_data);
   }
-
+#if (NXP_EXTNS == TRUE)
+  if (p_data && status != NFC_STATUS_OK) GKI_freebuf(p_data);
+#else
   if (status != NFC_STATUS_OK) GKI_freebuf(p_data);
-
+#endif
   return status;
 }
 
@@ -1697,14 +1720,22 @@ std::string NFC_GetStatusName(tNFC_STATUS status) {
  *******************************************************************************/
 tNFC_chipType NFC_ProcessChipType(tNFC_FW_VERSION nfc_fw_version) {
   tNFC_chipType chipType = sn100u;
-  if (nfc_fw_version.rom_code_version == 0x01 &&
-      nfc_fw_version.major_version == 0x10) {
+  if (nfc_fw_version.rom_code_version == NFC_NXP_FW_SN100U_ROMCODE_VERISON &&
+      nfc_fw_version.major_version == NFC_NXP_FW_SN100U_MAJOR_VERSION) {
     /* For SN1xx Rom code version : 0x01 && major version : 0x10*/
     chipType = sn100u;
-  } else if (nfc_fw_version.rom_code_version == 0x01 &&
-             nfc_fw_version.major_version == 0x01) {
+  } else if (nfc_fw_version.rom_code_version == NFC_NXP_FW_SN220U_ROMCODE_VERISON &&
+             nfc_fw_version.major_version == NFC_NXP_FW_SN220U_MAJOR_VERSION) {
     /* For SN220 Rom code version : 0x01 && major version : 0x01*/
     chipType = sn220u;
+  } else if (nfc_fw_version.rom_code_version == NFC_NXP_FW_PN557_ROMCODE_VERISON &&
+            ((nfc_fw_version.major_version == NFC_NXP_SFWU_PN557_MAJOR_VERSION) ||
+            (nfc_fw_version.major_version == NFC_NXP_FW_PN557_MAJOR_VERSION))) {
+    /* For PN557 Rom code version : 0x12 && major version : 0x01 or 0x21*/
+    chipType = pn557;
+  } else if (nfc_fw_version.rom_code_version == NFC_NXP_FW_SN300U_ROMCODE_VERISON &&
+             nfc_fw_version.major_version == NFC_NXP_FW_SN300U_MAJOR_VERSION) {
+    chipType = sn300u;
   }
   return chipType;
 }
@@ -1724,7 +1755,9 @@ void NFC_SetFeatureList(tNFC_FW_VERSION nfc_fw_version) {
   LOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: chipType = %d", __func__, chipType);
 #if(NXP_EXTNS == TRUE)
-  if (!(((nfcFL.chipType == sn220u) && NXP_EN_SN220U) || ((nfcFL.chipType == sn100u) && (NXP_EN_SN110U || NXP_EN_SN100U)))) {
+  if (!(((nfcFL.chipType == sn220u) && NXP_EN_SN220U) || ((nfcFL.chipType == sn300u) && NXP_EN_SN300U) ||
+        ((nfcFL.chipType == sn100u) && (NXP_EN_SN110U || NXP_EN_SN100U)) ||
+      ((nfcFL.chipType == pn557) && NXP_EN_PN557))) {
     LOG(ERROR) << StringPrintf("************************************************************************");
     LOG(ERROR) << StringPrintf("*****USING UNTESTED SECURE NFC MW FOR CHIP %s : NOT RECOMMENDED*****", product[nfcFL.chipType]);
     LOG(ERROR) << StringPrintf("************************************************************************");

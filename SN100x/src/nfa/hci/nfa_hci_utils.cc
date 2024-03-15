@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2020 NXP
+ *  Copyright 2018-2023 NXP
  *
  ******************************************************************************/
 
@@ -40,11 +40,11 @@
  *  This file contains the utility functions for the NFA HCI.
  *
  ******************************************************************************/
-#include <string>
-
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
 #include <log/log.h>
+
+#include <string>
 
 #include "nfa_dm_int.h"
 #include "nfa_hci_api.h"
@@ -2170,6 +2170,32 @@ void nfa_hciu_add_host_resetting(uint8_t host_id, uint8_t reset_type) {
 
 /*******************************************************************************
 **
+** Function         nfa_hciu_check_host_resetting
+**
+** Description      Check whether host recovery in progress
+**
+** Returns          TRUE, if the host is recovering
+**                  FALSE, if the host is not recovering
+**
+*******************************************************************************/
+bool nfa_hciu_check_host_resetting(uint8_t host_id, uint8_t reset_type) {
+  uint8_t xx;
+  bool isResetting = false;
+  for (xx = 0; xx < NFA_HCI_MAX_HOST_IN_NETWORK; xx++) {
+    if (nfa_hci_cb.reset_host[xx].host_id == host_id &&
+        (nfa_hci_cb.reset_host[xx].reset_cfg & reset_type) == reset_type) {
+      isResetting = true;
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("nfa_hciu_check_host_resetting () host %d %d ",
+                          host_id, reset_type);
+      break;
+    }
+  }
+  return isResetting;
+}
+
+/*******************************************************************************
+**
 ** Function         nfa_hciu_get_hci_host_id
 **
 ** Description      This function returns hci host id for given nfceeid
@@ -2185,6 +2211,8 @@ uint8_t nfa_hciu_get_hci_host_id(uint8_t nfceeid)
       return NFA_HCI_UICC_HOST;
     case NFA_HCI_FIRST_PROP_HOST:
       return NFA_HCI_FIRST_PROP_HOST;
+    case NFA_HCI_EUICC_HOST:
+      return NFA_HCI_FIRST_PROP_HOST + 1;
     case NFA_HCI_FIRST_DYNAMIC_HOST + 1:
       return NFA_HCI_FIRST_DYNAMIC_HOST + 1;
     case NFA_HCI_FIRST_DYNAMIC_HOST + 2:

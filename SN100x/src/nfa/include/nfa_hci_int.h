@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2023 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -72,6 +72,8 @@ extern uint8_t HCI_LOOPBACK_DEBUG;
 #define NFA_HCI_FIRST_DYNAMIC_HOST      NFA_HCI_HOST_ID_DYNAMIC_HOST0 /* Host ID for DYN HOST 0 */
 #define NFA_HCI_LAST_DYNAMIC_HOST       (NFA_HCI_HOST_ID_DYNAMIC_HOST0 + NFA_HCI_MAX_NUM_PROP_HOST - 1)
 
+#define NFA_HCI_EUICC_HOST (NFA_HCI_FIRST_PROP_HOST + 1) /*Host ID for eUICC*/
+
 /* Static pipes - ADMIN Pipe, Link Management pipe and Static APDU pipes */
 #define NFA_HCI_MAX_NUM_STATIC_PIPES         (2)
 #else
@@ -85,10 +87,14 @@ extern uint8_t HCI_LOOPBACK_DEBUG;
 #if(NXP_EXTNS == TRUE)
 /*Default pipe ID for prop host*/
 #define NFA_HCI_DEFAULT_ID_MANAGEMENT_PIPE 0x18
-/*Default conn pipe ID for prop host*/
+/*Default conn pipe ID for prop host eSE*/
 #define NFA_HCI_CONN_ESE_PIPE 0x16
-/*Default APDUpipe ID for prop host*/
+/*Default APDUpipe ID for prop host eSE*/
 #define NFA_HCI_APDUESE_PIPE 0x19
+/*Default conn pipe ID for prop host eUICC*/
+#define NFA_HCI_CONN_EUICC_PIPE 0x2B
+/*Default APDUpipe ID for prop host eUICC*/
+#define NFA_HCI_APDU_EUICC_PIPE 0x27
 #endif
 /* HCI SW Version number                       */
 #define NFA_HCI_VERSION_SW 0x090000
@@ -121,11 +127,18 @@ extern uint8_t HCI_LOOPBACK_DEBUG;
 #define NFA_HCI_STATE_RESTORE_NETWK_ENABLE 0x08
 #if(NXP_EXTNS == TRUE)
 /*NFCEE Recovery codes*/
+
+/*HCI_CLEAR_ALL_PIPE event received*/
 #define NFCEE_HCI_NOTIFY_ALL_PIPE_CLEARED       0x01
+/*NFCEE Unrecoverable status notification received*/
 #define NFCEE_UNRECOVERABLE_ERRROR              0x10
+/*NFCEE Discovery notification received*/
 #define NFCEE_REINIT                            0x02
+/*NFCEE removed notification received*/
 #define NFCEE_REMOVED_NTF                       0x04
+/*NFCEE Initialization completed status notification received*/
 #define NFCEE_INIT_COMPLETED                    0x08
+
 #define NFA_HCI_MAX_RSP_WAIT_TIME 0x0C
 /* After the reception of WTX, maximum response timeout value is 30 sec */
 #define NFA_HCI_CHAIN_PKT_RSP_TIMEOUT 30000
@@ -469,7 +482,6 @@ typedef struct
     uint32_t                   rsp_timeout;
 } tNFA_HCI_PIPE_CMDRSP_INFO;
 
-
 #endif
 /* union of all event data types */
 typedef union {
@@ -582,9 +594,7 @@ typedef struct {
   uint8_t reset_host[NFA_HCI_MAX_HOST_IN_NETWORK]; /* List of host reseting */
 #endif
   bool b_low_power_mode;  /* Host controller in low power mode */
-#if(NXP_EXTNS != TRUE)
   bool b_hci_new_sessionId; /* Command sent to set a new session Id */
-#endif
   bool b_hci_netwk_reset; /* Command sent to reset HCI Network */
   bool w4_hci_netwk_init; /* Wait for other host in network to initialize */
   TIMER_LIST_ENT timer;   /* Timer to avoid indefinitely waiting for response */
@@ -780,6 +790,7 @@ extern void nfa_hciu_clear_host_resetting(uint8_t host_id, uint8_t reset_cfg);
 extern void nfa_hci_handle_pending_host_reset();
 extern uint8_t nfa_hciu_get_hci_host_id(uint8_t nfceeid);
 extern void nfa_hci_handle_control_evt(tNFC_CONN_EVT event,tNFC_CONN* p_data);
+extern bool nfa_hciu_check_host_resetting(uint8_t host_id, uint8_t reset_type);
 #endif
 #define VERBOSE_BUFF_SIZE 100
 #endif /* NFA_HCI_INT_H */

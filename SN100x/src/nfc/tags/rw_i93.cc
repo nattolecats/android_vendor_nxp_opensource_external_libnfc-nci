@@ -41,17 +41,15 @@
  *  mode.
  *
  ******************************************************************************/
-#include <log/log.h>
-#include <string.h>
-
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
-
-#include "nfc_target.h"
+#include <log/log.h>
+#include <string.h>
 
 #include "bt_types.h"
 #include "nfc_api.h"
 #include "nfc_int.h"
+#include "nfc_target.h"
 #include "rw_api.h"
 #include "rw_int.h"
 
@@ -134,6 +132,8 @@ void rw_i93_get_product_version(uint8_t* p_uid) {
       p_i93->product_version = RW_I93_STM_M24LR04E_R;
     else if (p_i93->ic_reference == I93_IC_REF_STM_M24LR16E_R)
       p_i93->product_version = RW_I93_STM_M24LR16E_R;
+    else if (p_i93->ic_reference == I93_IC_REF_STM_M24LR16D_W)
+      p_i93->product_version = RW_I93_STM_M24LR16D_W;
     else if (p_i93->ic_reference == I93_IC_REF_STM_M24LR64E_R)
       p_i93->product_version = RW_I93_STM_M24LR64E_R;
     else if (p_i93->ic_reference == I93_IC_REF_STM_ST25DVHIK)
@@ -164,32 +164,32 @@ void rw_i93_get_product_version(uint8_t* p_uid) {
     }
   } else if ((p_uid[1] == I93_UID_IC_MFG_CODE_ONS) &&
              (p_i93->info_flags & I93_INFO_FLAG_IC_REF)) {
-      switch (p_i93->ic_reference) {
-        case I93_IC_REF_ONS_N36RW02:
-          p_i93->product_version = RW_I93_ONS_N36RW02;
-          break;
-        case I93_IC_REF_ONS_N24RF04:
-          p_i93->product_version = RW_I93_ONS_N24RF04;
-          break;
-        case I93_IC_REF_ONS_N24RF04E:
-          p_i93->product_version = RW_I93_ONS_N24RF04E;
-          break;
-        case I93_IC_REF_ONS_N24RF16:
-          p_i93->product_version = RW_I93_ONS_N24RF16;
-          break;
-        case I93_IC_REF_ONS_N24RF16E:
-          p_i93->product_version = RW_I93_ONS_N24RF16E;
-          break;
-        case I93_IC_REF_ONS_N24RF64:
-          p_i93->product_version = RW_I93_ONS_N24RF64;
-          break;
-        case I93_IC_REF_ONS_N24RF64E:
-          p_i93->product_version = RW_I93_ONS_N24RF64E;
-          break;
-        default:
-          p_i93->product_version = RW_I93_UNKNOWN_PRODUCT;
+    switch (p_i93->ic_reference) {
+      case I93_IC_REF_ONS_N36RW02:
+        p_i93->product_version = RW_I93_ONS_N36RW02;
         break;
-      }
+      case I93_IC_REF_ONS_N24RF04:
+        p_i93->product_version = RW_I93_ONS_N24RF04;
+        break;
+      case I93_IC_REF_ONS_N24RF04E:
+        p_i93->product_version = RW_I93_ONS_N24RF04E;
+        break;
+      case I93_IC_REF_ONS_N24RF16:
+        p_i93->product_version = RW_I93_ONS_N24RF16;
+        break;
+      case I93_IC_REF_ONS_N24RF16E:
+        p_i93->product_version = RW_I93_ONS_N24RF16E;
+        break;
+      case I93_IC_REF_ONS_N24RF64:
+        p_i93->product_version = RW_I93_ONS_N24RF64;
+        break;
+      case I93_IC_REF_ONS_N24RF64E:
+        p_i93->product_version = RW_I93_ONS_N24RF64E;
+        break;
+      default:
+        p_i93->product_version = RW_I93_UNKNOWN_PRODUCT;
+        break;
+    }
   } else {
     p_i93->product_version = RW_I93_UNKNOWN_PRODUCT;
   }
@@ -287,7 +287,8 @@ bool rw_i93_process_ext_sys_info(uint8_t* p_data, uint16_t length) {
     rw_i93_get_product_version(p_uid);
 
     if (p_i93->uid[0] == I93_UID_FIRST_BYTE) {
-      if ((p_i93->uid[1] == I93_UID_IC_MFG_CODE_STM) || (p_i93->uid[1] == I93_UID_IC_MFG_CODE_ONS)){
+      if ((p_i93->uid[1] == I93_UID_IC_MFG_CODE_STM) ||
+          (p_i93->uid[1] == I93_UID_IC_MFG_CODE_ONS)) {
         /* STM & ONS supports more than 2040 bytes */
         p_i93->intl_flags |= RW_I93_FLAG_EXT_COMMANDS;
       }
@@ -386,12 +387,14 @@ bool rw_i93_process_sys_info(uint8_t* p_data, uint16_t length) {
         **  M24LR64-R:  001011xx(b), blockSize: 4, numberBlocks: 0x800
         **  M24LR04E-R: 01011010(b), blockSize: 4, numberBlocks: 0x80
         **  M24LR16E-R: 01001110(b), blockSize: 4, numberBlocks: 0x200
+        **  M24LR16D-W: 01001101(b), blockSize: 4, numberBlocks: 0x200
         **  M24LR64E-R: 01011110(b), blockSize: 4, numberBlocks: 0x800
         */
         if ((p_i93->product_version == RW_I93_STM_M24LR16E_R) ||
+            (p_i93->product_version == RW_I93_STM_M24LR16D_W) ||
             (p_i93->product_version == RW_I93_STM_M24LR64E_R)) {
           /*
-          ** M24LR16E-R or M24LR64E-R returns system information
+          ** M24LR16E-R or M24LR16D-W or M24LR64E-R returns system information
           ** without memory size, if option flag is not set.
           ** LRIS64K and M24LR64-R return error if option flag is not
           ** set.
@@ -431,28 +434,28 @@ bool rw_i93_process_sys_info(uint8_t* p_data, uint16_t length) {
         **  N24RF64:  01101010(b), blockSize: 4, numberBlocks: 0x800
         **  N24RF64E: 01101110(b), blockSize: 4, numberBlocks: 0x800
         */
-          p_i93->block_size = 4;
-          switch (p_i93->product_version){
-            case RW_I93_ONS_N36RW02:
-                 p_i93->num_block = 0x40;
-                 break;
-            case RW_I93_ONS_N24RF04:
-            case RW_I93_ONS_N24RF04E:
-                 p_i93->num_block = 0x80;
-                 break;
-            case RW_I93_ONS_N24RF16:
-            case RW_I93_ONS_N24RF16E:
-                 p_i93->num_block = 0x200;
-                 p_i93->intl_flags |= RW_I93_FLAG_16BIT_NUM_BLOCK;
-                 break;
-            case RW_I93_ONS_N24RF64:
-            case RW_I93_ONS_N24RF64E:
-                 p_i93->num_block = 0x800;
-                 p_i93->intl_flags |= RW_I93_FLAG_16BIT_NUM_BLOCK;
-                 break;
-            default:
-                 return false;
-          }
+        p_i93->block_size = 4;
+        switch (p_i93->product_version) {
+          case RW_I93_ONS_N36RW02:
+            p_i93->num_block = 0x40;
+            break;
+          case RW_I93_ONS_N24RF04:
+          case RW_I93_ONS_N24RF04E:
+            p_i93->num_block = 0x80;
+            break;
+          case RW_I93_ONS_N24RF16:
+          case RW_I93_ONS_N24RF16E:
+            p_i93->num_block = 0x200;
+            p_i93->intl_flags |= RW_I93_FLAG_16BIT_NUM_BLOCK;
+            break;
+          case RW_I93_ONS_N24RF64:
+          case RW_I93_ONS_N24RF64E:
+            p_i93->num_block = 0x800;
+            p_i93->intl_flags |= RW_I93_FLAG_16BIT_NUM_BLOCK;
+            break;
+          default:
+            return false;
+        }
       }
     }
   }
@@ -475,7 +478,8 @@ bool rw_i93_check_sys_info_prot_ext(uint8_t error_code) {
 
   DLOG_IF(INFO, nfc_debug_enabled) << __func__;
 
-  if (((p_i93->uid[1] == I93_UID_IC_MFG_CODE_STM) || (p_i93->uid[1] == I93_UID_IC_MFG_CODE_ONS)) &&
+  if (((p_i93->uid[1] == I93_UID_IC_MFG_CODE_STM) ||
+       (p_i93->uid[1] == I93_UID_IC_MFG_CODE_ONS)) &&
       (p_i93->sent_cmd == I93_CMD_GET_SYS_INFO) &&
       (error_code == I93_ERROR_CODE_OPTION_NOT_SUPPORTED) &&
       (rw_i93_send_cmd_get_sys_info(nullptr, I93_FLAG_PROT_EXT_YES) ==
@@ -686,11 +690,17 @@ bool rw_i93_send_to_lower(NFC_HDR* p_msg) {
     rw_cb.tcb.i93.p_retry_cmd = nullptr;
   }
 
+  uint16_t msg_size = sizeof(NFC_HDR) + p_msg->offset + p_msg->len;
+
   rw_cb.tcb.i93.p_retry_cmd = (NFC_HDR*)GKI_getpoolbuf(NFC_RW_POOL_ID);
 
-  if (rw_cb.tcb.i93.p_retry_cmd) {
-    memcpy(rw_cb.tcb.i93.p_retry_cmd, p_msg,
-           sizeof(NFC_HDR) + p_msg->offset + p_msg->len);
+  if (rw_cb.tcb.i93.p_retry_cmd &&
+      GKI_get_pool_bufsize(NFC_RW_POOL_ID) >= msg_size) {
+    memcpy(rw_cb.tcb.i93.p_retry_cmd, p_msg, msg_size);
+  } else {
+    LOG(ERROR) << StringPrintf("Memory allocation error");
+    android_errorWriteLog(0x534e4554, "157650357");
+    return false;
   }
 
   if (NFC_SendData(NFC_RF_CONN_ID, p_msg) != NFC_STATUS_OK) {
@@ -994,8 +1004,8 @@ tNFC_STATUS rw_i93_send_cmd_write_single_block(uint16_t block_number,
 **
 ** Description      Send Lock Block Request to VICC
 **
-**                  STM LRIS64K, M24LR64-R, M24LR04E-R, M24LR16E-R, M24LR64E-R
-**                  do not support.
+**                  STM LRIS64K, M24LR64-R, M24LR04E-R, M24LR16E-R, M24LR64E-R,
+**                  M24LR16D-W do not support.
 **
 ** Returns          tNFC_STATUS
 **
@@ -1712,7 +1722,8 @@ tNFC_STATUS rw_i93_get_next_blocks(uint16_t offset) {
     }
 
     if (p_i93->uid[1] == I93_UID_IC_MFG_CODE_STM) {
-      /* LRIS64K, M24LR64-R, M24LR04E-R, M24LR16E-R, M24LR64E-R requires
+      /* LRIS64K, M24LR64-R, M24LR04E-R, M24LR16E-R, M24LR16D-W, M24LR64E-R
+      ** require
       ** - The max number of blocks is 32 and they are all located in the
       **   same sector.
       ** - The sector is 32 blocks of 4 bytes.
@@ -1721,6 +1732,7 @@ tNFC_STATUS rw_i93_get_next_blocks(uint16_t offset) {
           (p_i93->product_version == RW_I93_STM_M24LR64_R) ||
           (p_i93->product_version == RW_I93_STM_M24LR04E_R) ||
           (p_i93->product_version == RW_I93_STM_M24LR16E_R) ||
+          (p_i93->product_version == RW_I93_STM_M24LR16D_W) ||
           (p_i93->product_version == RW_I93_STM_M24LR64E_R)) {
         if (num_block > I93_STM_MAX_BLOCKS_PER_READ)
           num_block = I93_STM_MAX_BLOCKS_PER_READ;
@@ -1741,9 +1753,9 @@ tNFC_STATUS rw_i93_get_next_blocks(uint16_t offset) {
       */
       if ((p_i93->product_version == RW_I93_ONS_N36RW02) ||
           (p_i93->product_version == RW_I93_ONS_N24RF04) ||
-          (p_i93->product_version == RW_I93_ONS_N24RF04E)||
+          (p_i93->product_version == RW_I93_ONS_N24RF04E) ||
           (p_i93->product_version == RW_I93_ONS_N24RF16) ||
-          (p_i93->product_version == RW_I93_ONS_N24RF16E)||
+          (p_i93->product_version == RW_I93_ONS_N24RF16E) ||
           (p_i93->product_version == RW_I93_ONS_N24RF64) ||
           (p_i93->product_version == RW_I93_ONS_N24RF64E)) {
         if (num_block > I93_ONS_MAX_BLOCKS_PER_READ)
@@ -1797,7 +1809,7 @@ tNFC_STATUS rw_i93_get_next_block_sec(void) {
     num_blocks = RW_I93_GET_MULTI_BLOCK_SEC_SIZE;
 
   DLOG_IF(INFO, nfc_debug_enabled)
-      << __func__ << std::hex << rw_cb.tcb.i93.intl_flags;
+      << StringPrintf("%s intl_flags=%d", __func__, rw_cb.tcb.i93.intl_flags);
   return rw_i93_send_cmd_get_multi_block_sec(p_i93->rw_offset, num_blocks);
 }
 
@@ -2308,6 +2320,9 @@ void rw_i93_sm_read_ndef(NFC_HDR* p_resp) {
 
     if (p_resp->len > 0) {
       (*(rw_cb.p_cback))(RW_I93_NDEF_READ_EVT, &rw_data);
+    } else {
+      // free buffer, if len == 0
+      GKI_freebuf(p_resp);
     }
 
     /* this will make read data from next block */
@@ -2867,7 +2882,7 @@ void rw_i93_sm_format(NFC_HDR* p_resp) {
 
       /* Capability Container */
       *(p++) = I93_ICODE_CC_MAGIC_NUMER_E1; /* magic number */
-      *(p++) = 0x40;                     /* version 1.0, read/write */
+      *(p++) = 0x40;                        /* version 1.0, read/write */
 
       /* if memory size is less than 2048 bytes */
       if (((p_i93->num_block * p_i93->block_size) / 8) < 0x100)
@@ -3105,13 +3120,10 @@ void rw_i93_handle_error(tNFC_STATUS status) {
 
   if (rw_cb.p_cback) {
     rw_data.status = status;
-#if (NXP_EXTNS == TRUE)
-      if((NFC_STATUS_TIMEOUT == rw_data.status)
-         && (p_i93->sent_cmd != I93_CMD_STAY_QUIET))
-      {
-        p_i93->state = RW_I93_STATE_IDLE;
-      }
-#endif
+    if ((NFC_STATUS_TIMEOUT == rw_data.status) &&
+        (p_i93->sent_cmd != I93_CMD_STAY_QUIET)) {
+      p_i93->state = RW_I93_STATE_IDLE;
+    }
     switch (p_i93->state) {
       case RW_I93_STATE_IDLE: /* in case of RawFrame */
         event = RW_I93_INTF_ERROR_EVT;
@@ -4463,6 +4475,8 @@ static std::string rw_i93_get_tag_name(uint8_t product_version) {
       return "M24LR04E";
     case RW_I93_STM_M24LR16E_R:
       return "M24LR16E";
+    case RW_I93_STM_M24LR16D_W:
+      return "M24LR16D-W";
     case RW_I93_STM_M24LR64E_R:
       return "M24LR64E";
     case RW_I93_STM_ST25DV04K:

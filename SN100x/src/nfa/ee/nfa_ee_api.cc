@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2022 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -39,11 +39,12 @@
  *  NFA interface to NFCEE - API functions
  *
  ******************************************************************************/
+#include "nfa_ee_api.h"
+
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
 
 #include "nfa_dm_int.h"
-#include "nfa_ee_api.h"
 #include "nfa_ee_int.h"
 #include "nfc_int.h"
 
@@ -146,10 +147,10 @@ tNFA_STATUS NFA_EeGetInfo(uint8_t* p_num_nfcee, tNFA_EE_INFO* p_info) {
     p_info->num_interface = p_cb->num_interface;
     p_info->num_tlvs = p_cb->num_tlvs;
 
-#if (NXP_EXTNS == TRUE)
     p_info->la_protocol = p_cb->la_protocol;
     p_info->lb_protocol = p_cb->lb_protocol;
     p_info->lf_protocol = p_cb->lf_protocol;
+#if (NXP_EXTNS == TRUE)
     p_info->lbp_protocol = p_cb->lbp_protocol;
 #endif
     memcpy(p_info->ee_interface, p_cb->ee_interface, p_cb->num_interface);
@@ -677,8 +678,8 @@ tNFA_STATUS NFA_EeAddAidRouting(tNFA_HANDLE ee_handle, uint8_t aid_len,
 #if (NXP_EXTNS == TRUE)
       DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf("aid:<%02x%02x>", p_aid[0], p_aid[1]);
-}
 #endif
+      }
       nfa_sys_sendmsg(p_msg);
 
       status = NFA_STATUS_OK;

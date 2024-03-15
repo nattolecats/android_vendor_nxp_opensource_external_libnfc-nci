@@ -31,9 +31,18 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2023 NXP
  *
  ******************************************************************************/
+ /******************************************************************************
+ *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
+ ******************************************************************************/
+
 /******************************************************************************
  *
  *  This file contains the Near Field Communication (NFC) API function
@@ -56,12 +65,29 @@
 #define NXP_EN_SN110U    1
 #define NXP_EN_SN100U    1
 #define NXP_EN_SN220U    1
-#define NXP_ANDROID_VER (12U)        /* NXP android version */
-#define NFC_NXP_MW_VERSION_MAJ (0x04) /* MW Major Version */
-#define NFC_NXP_MW_VERSION_MIN (0x01) /* MW Minor Version */
+#define NXP_EN_PN560     1
+#define NXP_EN_PN557     1
+#define NXP_EN_SN300U    1
+#define NXP_ANDROID_VER (14U)        /* NXP android version */
+#define NFC_NXP_MW_VERSION_MAJ (0x05) /* MW Major Version */
+#define NFC_NXP_MW_VERSION_MIN (0x00) /* MW Minor Version */
 #define NFC_NXP_MW_CUSTOMER_ID (0x00) /* MW Customer Id */
 #define NFC_NXP_MW_RC_VERSION  (0x00) /* MW RC Version */
 #define NFC_EE_DISC_OP_REMOVE 1
+
+#define NFC_NXP_FW_PN557_ROMCODE_VERISON (0x12) /*FW PN557 ROM CODE VERSION*/
+#define NFC_NXP_SFWU_PN557_MAJOR_VERSION (0x21) /*sFWu PN557 firmware major version*/
+#define NFC_NXP_FW_PN557_MAJOR_VERSION (0x1) /*sFWu PN557 firmware major version*/
+
+#define NFC_NXP_FW_SN100U_ROMCODE_VERISON (0x01) /*FW sn100u ROM CODE VERSION*/
+#define NFC_NXP_FW_SN100U_MAJOR_VERSION (0x10) /*sFWu PN557 firmware major version*/
+
+#define NFC_NXP_FW_SN220U_ROMCODE_VERISON (0x01) /*FW sn220u ROM CODE VERSION*/
+#define NFC_NXP_FW_SN220U_MAJOR_VERSION (0x01) /*sFWu sn220u firmware major version*/
+
+#define NFC_NXP_FW_SN300U_ROMCODE_VERISON (0x02) /*FW sn300u ROM CODE VERSION*/
+#define NFC_NXP_FW_SN300U_MAJOR_VERSION (0x20) /*sFWu sn300u firmware major version*/
+
 #endif
 /* NFC application return status codes */
 /* Command succeeded    */
@@ -163,6 +189,7 @@ typedef uint8_t tNFC_STATUS;
 #define NXP_NFC_RESET_MSB(x) (x &= 0x7F)
 #define NXP_NFC_ESE_CONN_PIPE_STATUS  ((unsigned char)0x22)
 #define NXP_NFC_ESE_APDU_PIPE_STATUS  ((unsigned char)0x23)
+#define NXP_NFC_EUICC_APDU_PIPE_STATUS ((unsigned char)0x12)
 /**********************************************
  * NFC Config Parameter IDs defined by NXP NFC
  **********************************************/
@@ -199,6 +226,8 @@ typedef uint8_t tNFC_STATUS;
   ((unsigned char)0xEA) /* param for retrieveing HCI session ID for UICC */
 #define NXP_NFC_PARAM_SWP_SESSIONID_INT1A \
   ((unsigned char)0x1E) /* param for retrieveing HCI session ID for UICC2 */
+#define NXP_NFC_TXLDO_OVER_CURRENT \
+  ((unsigned char)0xE3) /* Core generic error for TXLDO OVER CURRENT */
 #endif
 /**********************************************
  * NFC Config Parameter IDs defined by NCI
@@ -300,6 +329,8 @@ enum {
   NFC_RF_INTF_EXT_STOP_REVT,      /* RF Intf Ext stop response     */
   NFC_NFCEE_MODE_SET_INFO         /* NFCEE Mode Set Notification event*/
 #endif
+  ,
+  NFC_TZ_SECURE_ZONE_DISABLE_NFC_REVT  /* TZ secure zone event to switch OFF NFC */
 };
 typedef uint16_t tNFC_RESPONSE_EVT;
 
@@ -545,6 +576,9 @@ typedef uint8_t tNFC_PROTOCOL;
 #define NFC_DISCOVERY_TYPE_LISTEN_ISO15693 NCI_DISCOVERY_TYPE_LISTEN_ISO15693
 #define NFC_DISCOVERY_TYPE_LISTEN_B_PRIME NCI_DISCOVERY_TYPE_LISTEN_B_PRIME
 #if (NXP_EXTNS == TRUE)
+#if (NXP_QTAG == TRUE)
+#define NFC_DISCOVERY_TYPE_POLL_Q NCI_DISCOVERY_TYPE_POLL_Q
+#endif
 #define NFC_DISCOVERY_TYPE_FIELD_DETECT NCI_DISCOVERY_TYPE_FIELD_DETECT
 #endif
 typedef uint8_t tNFC_DISCOVERY_TYPE;
@@ -712,6 +746,11 @@ typedef uint16_t tNFC_DISCOVER_EVT;
 typedef tNFC_STATUS tNFC_START_DEVT;
 
 typedef tNCI_RF_PA_PARAMS tNFC_RF_PA_PARAMS;
+#if (NXP_EXTNS == TRUE)
+#if (NXP_QTAG == TRUE)
+typedef tNCI_RF_PQ_PARAMS tNFC_RF_PQ_PARAMS;
+#endif
+#endif
 #define NFC_MAX_SENSB_RES_LEN NCI_MAX_SENSB_RES_LEN
 #define NFC_NFCID0_MAX_LEN 4
 #if (NXP_EXTNS == TRUE)
@@ -763,6 +802,11 @@ typedef tNCI_RF_ACM_P_PARAMS tNFC_RF_ACM_P_PARAMS;
 
 typedef union {
   tNFC_RF_PA_PARAMS pa;
+#if (NXP_EXTNS == TRUE)
+#if (NXP_QTAG == TRUE)
+  tNFC_RF_PQ_PARAMS pq;
+#endif
+#endif
   tNFC_RF_PB_PARAMS pb;
   tNFC_RF_PF_PARAMS pf;
   tNFC_RF_LF_PARAMS lf;
@@ -804,6 +848,20 @@ typedef struct {
   uint8_t his_byte_len;             /* len of historical bytes          */
   uint8_t his_byte[NFC_MAX_HIS_BYTES_LEN]; /* historical bytes             */
 } tNFC_INTF_PA_ISO_DEP;
+
+#if (NXP_EXTNS == TRUE)
+#if (NXP_QTAG == TRUE)
+typedef struct {
+  uint8_t ats_res_len;              /* Length of ATS RES                */
+  uint8_t ats_res[NFC_MAX_ATS_LEN]; /* ATS RES                          */
+  bool nad_used;                    /* NAD is used or not               */
+  uint8_t fwi;                      /* Frame Waiting time Integer       */
+  uint8_t sfgi;                     /* Start-up Frame Guard time Integer*/
+  uint8_t his_byte_len;             /* len of historical bytes          */
+  uint8_t his_byte[NFC_MAX_HIS_BYTES_LEN]; /* historical bytes             */
+} tNFC_INTF_PQ_ISO_DEP;
+#endif
+#endif
 
 typedef struct { uint8_t rats; /* RATS */ } tNFC_INTF_LA_ISO_DEP;
 
@@ -861,6 +919,11 @@ typedef struct {
   union {
     tNFC_INTF_LA_ISO_DEP la_iso;
     tNFC_INTF_PA_ISO_DEP pa_iso;
+#if (NXP_EXTNS == TRUE)
+#if (NXP_QTAG == TRUE)
+    tNFC_INTF_PQ_ISO_DEP pq_iso;
+#endif
+#endif
     tNFC_INTF_LB_ISO_DEP lb_iso;
     tNFC_INTF_PB_ISO_DEP pb_iso;
     tNFC_INTF_LA_NFC_DEP la_nfc;
@@ -1463,7 +1526,7 @@ extern tNFC_STATUS NFC_TestLoopback(NFC_HDR* p_data);
 *******************************************************************************/
 extern tNFC_STATUS NFC_ISODEPNakPresCheck();
 
-#if (NXP_EXTNS == TRUE || APPL_DTA_MODE == TRUE)
+#if (NXP_EXTNS == TRUE)
 /*******************************************************************************
 **
 ** Function         nfc_ncif_getFWVersion
@@ -1541,8 +1604,9 @@ extern std::string NFC_GetStatusName(tNFC_STATUS status);
 ** Returns          Nothing
 **
 *******************************************************************************/
+#if (NXP_EXTNS == TRUE)
 extern void NFC_SetFeatureList(tNFC_FW_VERSION nfc_fw_version);
-
+#endif
 /*******************************************************************************
 **
 ** Function         NFC_RfIntfExtStart

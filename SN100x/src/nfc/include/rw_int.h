@@ -154,7 +154,7 @@ typedef uint8_t tRW_T1T_LOCK_STATUS;
 typedef struct {
   uint16_t offset;  /* Offset of the lock byte in the Tag                   */
   uint8_t num_bits; /* Number of lock bits in the lock byte                 */
-  uint16_t bytes_locked_per_bit; /* No. of tag bytes gets locked by a bit in this
+  uint8_t bytes_locked_per_bit; /* No. of tag bytes gets locked by a bit in this
                                    byte   */
 } tRW_T1T_LOCK_INFO;
 
@@ -385,7 +385,7 @@ typedef uint8_t tRW_T2T_LOCK_STATUS;
 typedef struct {
   uint16_t offset;              /* Offset of the lock byte in the Tag */
   uint16_t num_bits;            /* Number of lock bits in the lock byte */
-  uint8_t bytes_locked_per_bit; /* No. of tag bytes gets locked by a bit in this
+  uint16_t bytes_locked_per_bit; /* No. of tag bytes gets locked by a bit in this
                                    byte       */
 } tRW_T2T_LOCK_INFO;
 
@@ -512,6 +512,8 @@ typedef struct {
 #define RW_T3T_FL_W4_FMT_FELICA_LITE_POLL_RSP 0x10
 /* Waiting for POLL response for RW_T3tSetReadOnly */
 #define RW_T3T_FL_W4_SRO_FELICA_LITE_POLL_RSP 0x20
+/* Waiting for POLL response for RW_T3tPoll */
+#define RW_T3T_FL_W4_USER_POLL_RSP 0x40
 
 typedef struct {
   uint32_t cur_tout; /* Current command timeout */
@@ -775,6 +777,7 @@ enum {
   RW_I93_STM_M24LR64_R,              /* STM M24LR64-R                    */
   RW_I93_STM_M24LR04E_R,             /* STM M24LR04E-R                   */
   RW_I93_STM_M24LR16E_R,             /* STM M24LR16E-R                   */
+  RW_I93_STM_M24LR16D_W,             /* STM M24LR16D-W                   */
   RW_I93_STM_M24LR64E_R,             /* STM M24LR64E-R                   */
   RW_I93_STM_ST25DV04K,              /* STM ST25DV04K                    */
   RW_I93_STM_ST25DVHIK,              /* STM ST25DV 16K OR 64K            */
@@ -848,6 +851,7 @@ typedef union {
 #define RW_CB_TYPE_T3T 3
 #define RW_CB_TYPE_T4T 4
 #define RW_CB_TYPE_T5T 5
+#define RW_CB_TYPE_MIFARE 6
 typedef uint8_t tRW_CB_TYPE;
 
 /* RW control blocks */
@@ -910,6 +914,7 @@ void rw_t2t_handle_op_complete(void);
 extern void rw_t3t_process_timeout(TIMER_LIST_ENT* p_tle);
 extern tNFC_STATUS rw_t3t_select(uint8_t peer_nfcid2[NCI_RF_F_UID_LEN],
                                  uint8_t mrti_check, uint8_t mrti_update);
+void rw_t3t_handle_nci_poll_rsp(uint8_t nci_status);
 void rw_t3t_handle_nci_poll_ntf(uint8_t nci_status, uint8_t num_responses,
                                 uint8_t sensf_res_buf_size,
                                 uint8_t* p_sensf_res_buf);

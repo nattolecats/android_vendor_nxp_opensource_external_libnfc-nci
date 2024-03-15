@@ -18,7 +18,7 @@
 /******************************************************************************
  *  The original Work has been changed by NXP.
  *
- *  Copyright 2019-2020 NXP
+ *  Copyright 2019-2021 NXP
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -40,18 +40,16 @@
  *  mode.
  *
  ******************************************************************************/
-#include <log/log.h>
-#include <string.h>
-
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
-
-#include "nfc_target.h"
+#include <log/log.h>
+#include <string.h>
 
 #include "bt_types.h"
 #include "ce_api.h"
 #include "ce_int.h"
 #include "nfc_int.h"
+#include "nfc_target.h"
 #include "tags_int.h"
 
 using android::base::StringPrintf;
