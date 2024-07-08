@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2020-2021 NXP
+ *  Copyright 2020-2021, 2024 NXP
  *
  ******************************************************************************/
 
@@ -318,8 +318,14 @@ void nfa_ce_discovery_cback(tNFA_DM_RF_DISC_EVT event, tNFC_DISCOVER* p_data) {
       /* DM broadcasts deactivaiton event in listen sleep state, so check before
        * processing */
       if (nfa_ce_cb.flags & NFA_CE_FLAGS_LISTEN_ACTIVE_SLEEP) {
+#if (NXP_EXTNS != TRUE)
         ce_msg.hdr.event = NFA_CE_DEACTIVATE_NTF_EVT;
         ce_msg.hdr.layer_specific = p_data->deactivate.type;
+#else
+        ce_msg.deactivate_ntf.hdr.event = NFA_CE_DEACTIVATE_NTF_EVT;
+        ce_msg.deactivate_ntf.params.type = p_data->deactivate.type;
+        ce_msg.deactivate_ntf.params.reason = p_data->deactivate.reason;
+#endif
         nfa_ce_hdl_event((NFC_HDR*)&ce_msg);
       }
       break;
@@ -365,7 +371,7 @@ void nfc_ce_t3t_set_listen_params(void) {
       UINT16_TO_BE_STREAM(p_params, p_cb->listen_info[i].t3t_system_code);
       ARRAY_TO_BE_STREAM(p_params, p_cb->listen_info[i].t3t_nfcid2,
                          NCI_RF_F_UID_LEN);
-      if (NFC_GetNCIVersion() == NCI_VERSION_2_0) {
+      if (NFC_GetNCIVersion() >= NCI_VERSION_2_0) {
         ARRAY_TO_BE_STREAM(p_params, p_cb->listen_info[i].t3t_pmm,
                            NCI_T3T_PMM_LEN);
       }
@@ -383,7 +389,7 @@ void nfc_ce_t3t_set_listen_params(void) {
   /* Mask of IDs to disable listening */
   UINT16_TO_STREAM(p_params, t3t_flags2_mask);
 
-  if (NFC_GetNCIVersion() == NCI_VERSION_2_0) {
+  if (NFC_GetNCIVersion() >= NCI_VERSION_2_0) {
     /*Name changed in NCI2.0*/
     UINT8_TO_STREAM(p_params, NCI_PARAM_ID_LF_T3T_RD_ALLOWED);  /* type */
     UINT8_TO_STREAM(p_params, NCI_PARAM_LEN_LF_T3T_RD_ALLOWED); /* length */
@@ -393,7 +399,7 @@ void nfc_ce_t3t_set_listen_params(void) {
   }
   UINT8_TO_STREAM(p_params, adv_Feat);
 
-  if (NFC_GetNCIVersion() != NCI_VERSION_2_0) {
+  if (NFC_GetNCIVersion() < NCI_VERSION_2_0) {
     UINT8_TO_STREAM(p_params, NCI_PARAM_ID_LF_T3T_PMM);  /* type */
     UINT8_TO_STREAM(p_params, NCI_PARAM_LEN_LF_T3T_PMM); /* length */
     ARRAY_TO_BE_STREAM(p_params, t3tPMM, NCI_T3T_PMM_LEN);
@@ -1027,13 +1033,21 @@ bool nfa_ce_activate_ntf(tNFA_CE_MSG* p_ce_msg) {
 **
 *******************************************************************************/
 bool nfa_ce_deactivate_ntf(tNFA_CE_MSG* p_ce_msg) {
+#if (NXP_EXTNS == TRUE)
+  tNFC_DEACT_TYPE deact_type = (tNFC_DEACT_TYPE)p_ce_msg->deactivate_ntf.params.type;
+#else
   tNFC_DEACT_TYPE deact_type = (tNFC_DEACT_TYPE)p_ce_msg->hdr.layer_specific;
+#endif
   tNFA_CE_CB* p_cb = &nfa_ce_cb;
   tNFA_CONN_EVT_DATA conn_evt;
   uint8_t i;
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("deact_type=%d", deact_type);
 
+#if (NXP_EXTNS == TRUE)
+  /* We don't really care in CE case, need to check for future use */
+  conn_evt.deactivated.reason = p_ce_msg->deactivate_ntf.params.reason;
+#endif
   /* Check if deactivating to SLEEP mode */
   if ((deact_type == NFC_DEACTIVATE_TYPE_SLEEP) ||
       (deact_type == NFC_DEACTIVATE_TYPE_SLEEP_AF)) {

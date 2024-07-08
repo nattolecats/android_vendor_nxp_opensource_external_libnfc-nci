@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018 NXP
+ *  Copyright 2018, 2023-2024 NXP
  *
  ******************************************************************************/
 
@@ -110,6 +110,7 @@
 #define NFA_HCI_INIT_COMPLETED     0x20
 #define NFA_SRD_EVT_TIMEOUT 0x21
 #define NFA_SRD_FEATURE_NOT_SUPPORT_EVT 0x22
+#define NFA_HCI_DPD_MONITOR_EVT 0x23
 #endif
 typedef uint8_t tNFA_HCI_EVT;
 
@@ -134,6 +135,7 @@ typedef uint8_t tNFA_HCI_EVT;
 #define NFA_HCI_PIPE_OPENED 0x01 /* Pipe is opened */
 #if (NXP_EXTNS == TRUE)
  /* HCI Recovery status*/
+ #define NXP_NFA_HCI_PIPE_OPENED 0x02 /* NXP Prop pipe opened status */
  #define NFA_HCI_EE_RECOVERY_STARTED 0x01
  #define NFA_HCI_EE_RECOVERY_COMPLETED 0x02
 #define NFA_HCI_SESSION_ID_LEN 8 /* HCI Session ID length */
@@ -406,7 +408,6 @@ typedef void(tNFA_HCI_CBACK)(tNFA_HCI_EVT event, tNFA_HCI_EVT_DATA* p_data);
 *******************************************************************************/
 extern tNFA_STATUS NFA_HciRegister(char* p_app_name, tNFA_HCI_CBACK* p_cback,
                                    bool b_send_conn_evts);
-
 /*******************************************************************************
 **
 ** Function         NFA_HciGetGateAndPipeList
@@ -558,6 +559,41 @@ extern tNFA_STATUS NFA_HciOpenPipe(tNFA_HANDLE hci_handle, uint8_t pipe);
 extern tNFA_STATUS NFA_HciGetRegistry(tNFA_HANDLE hci_handle, uint8_t pipe,
                                       uint8_t reg_inx);
 #if (NXP_EXTNS == TRUE)
+/*******************************************************************************
+**
+** Function         nfa_hci_get_apdu_enabled_host
+**
+** Description      Find NFCEE ID for which power link control state to be reset
+**
+** Returns          NFCEE ID for which apdu pipe is created
+**
+*******************************************************************************/
+uint8_t nfa_hci_get_apdu_enabled_host(void);
+
+/*******************************************************************************
+ **
+ ** Function         nfa_hci_is_power_link_required
+ **
+ ** Description      Checks if power link command is required to send as per
+ **                  enabled/available NFCEEs.
+ **
+ ** Returns          TRUE, if eSE is enabled or  if eSE is disabled &
+ **                  eUICC is enabled otherwise false
+ **
+ *******************************************************************************/
+bool nfa_hci_is_power_link_required(uint8_t source_host);
+/*******************************************************************************
+ **
+ ** Function         nfa_hci_is_apdu_pipe_required
+ **
+ ** Description      Inline function to check APDU pipe creation is needed for
+ **                  given NFCEEs.
+ **
+ ** Returns          TRUE, if APDU pipe creation is needed for give nfcee
+ **                  otherwise false.
+ **
+ *******************************************************************************/
+bool nfa_hci_is_apdu_pipe_required(uint8_t nfcee_id);
 /*******************************************************************************
 **
 ** Function         NFA_HciSetRegistry

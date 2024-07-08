@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2019-2022 NXP
+ *  Copyright 2019-2024 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -56,6 +56,7 @@
 #include "nfc_int.h"
 #if (NXP_EXTNS == TRUE)
 #include "nfa_ee_int.h"
+#include "nfa_hci_int.h"
 #if(NXP_SRD == TRUE)
 #include "nfa_srd_int.h"
 #endif
@@ -212,7 +213,6 @@ void nci_proc_rf_management_rsp(NFC_HDR* p_msg) {
 
   switch (op_code) {
     case NCI_MSG_RF_DISCOVER:
-      nfa_dm_p2p_prio_logic(op_code, pp, NFA_DM_P2P_PRIO_RSP);
       nfc_ncif_rf_management_status(NFC_START_DEVT, *pp);
       break;
 
@@ -229,9 +229,6 @@ void nci_proc_rf_management_rsp(NFC_HDR* p_msg) {
       break;
 
     case NCI_MSG_RF_DEACTIVATE:
-      if (nfa_dm_p2p_prio_logic(op_code, pp, NFA_DM_P2P_PRIO_RSP) == false) {
-        return;
-      }
       nfc_ncif_proc_deactivate(*pp, *p_old, false);
       break;
 
@@ -259,6 +256,9 @@ void nci_proc_rf_management_rsp(NFC_HDR* p_msg) {
 
     case NCI_MSG_RF_INTF_EXT_STOP:
       nfc_ncif_event_status(NFC_RF_INTF_EXT_STOP_REVT, *pp);
+      break;
+    case NCI_MSG_RF_REMOVAL_DETECTION:
+      nfc_ncif_proc_removal_detection(*pp, false);
       break;
 #endif
     case NCI_MSG_RF_ISO_DEP_NAK_PRESENCE:
@@ -300,19 +300,13 @@ void nci_proc_rf_management_ntf(NFC_HDR* p_msg) {
         android_errorWriteLog(0x534e4554, "164440989");
         return;
       }
-      if (nfa_dm_p2p_prio_logic(op_code, pp, NFA_DM_P2P_PRIO_NTF) == false) {
-        return;
-      }
-      if (NFC_GetNCIVersion() == NCI_VERSION_2_0) {
+      if (NFC_GetNCIVersion() >= NCI_VERSION_2_0) {
         nfc_cb.deact_reason = *(pp + 1);
       }
       nfc_ncif_proc_deactivate(NFC_STATUS_OK, *pp, true);
       break;
 
     case NCI_MSG_RF_INTF_ACTIVATED:
-      if (nfa_dm_p2p_prio_logic(op_code, pp, NFA_DM_P2P_PRIO_NTF) == false) {
-        return;
-      }
       nfc_ncif_proc_activate(pp, len);
       break;
 
@@ -343,6 +337,15 @@ void nci_proc_rf_management_ntf(NFC_HDR* p_msg) {
       nfc_ncif_proc_ee_discover_req(pp, len);
       break;
 #endif
+#endif
+#if (NXP_EXTNS == TRUE)
+    case NCI_MSG_RF_REMOVAL_DETECTION:
+      if (p_msg->len < 4) {
+        android_errorWriteLog(0x534e4554, "176582502");
+        return;
+      }
+      nfc_ncif_proc_removal_detection(*pp, true);
+      break;
 #endif
     case NCI_MSG_RF_ISO_DEP_NAK_PRESENCE:
       if (p_msg->len < 4) {
@@ -411,7 +414,7 @@ void nci_proc_ee_management_rsp(NFC_HDR* p_msg) {
       }
       nfc_response.mode_set.nfcee_id = *p_old++;
       nfc_response.mode_set.mode = *p_old++;
-      if (nfc_cb.nci_version != NCI_VERSION_2_0 || *pp != NCI_STATUS_OK) {
+      if (nfc_cb.nci_version < NCI_VERSION_2_0 || *pp != NCI_STATUS_OK) {
         nfc_cb.flags &= ~NFC_FL_WAIT_MODE_SET_NTF;
         event = NFC_NFCEE_MODE_SET_REVT;
       } else {
@@ -561,13 +564,13 @@ void nci_proc_ee_management_ntf(NFC_HDR* p_msg) {
 #if (NXP_EXTNS == TRUE)
   if(op_code == NCI_MSG_NFCEE_MODE_SET)
   {
-    if(nfc_response.mode_set.nfcee_id == 0xC0 && nfc_response.mode_set.mode)
-    {
+    if (nfc_response.mode_set.nfcee_id == NFA_HCI_FIRST_PROP_HOST &&
+        nfc_response.mode_set.mode) {
       LOG(ERROR) << StringPrintf("Mode set status :0x%x ", nfc_response.mode_set.status);
       event = NFC_NFCEE_STATUS_REVT;
-      if(nfc_response.mode_set.status == 0x03) {
+      if (nfc_response.mode_set.status == NCI_STATUS_FAILED) {
         nfc_response.nfcee_status.status = NCI_STATUS_OK;
-        nfc_response.nfcee_status.nfcee_id = nfa_ee_cb.nfcee_id;
+        nfc_response.nfcee_status.nfcee_id = nfc_response.mode_set.nfcee_id;
         if(nfa_ee_cb.recovery_cnt < MAX_NFCEE_REMOVED_RECOVERY_CNT) {
           nfc_response.nfcee_status.nfcee_status = NFC_NFCEE_STS_UNRECOVERABLE_ERROR;
           if (p_cback) (*p_cback)(event, &nfc_response);

@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2020 NXP
+ *  Copyright 2018-2020, 2024 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -106,9 +106,9 @@ uint8_t nci_snd_core_init(uint8_t nci_version) {
   NCI_MSG_BLD_HDR0(pp, NCI_MT_CMD, NCI_GID_CORE);
   NCI_MSG_BLD_HDR1(pp, NCI_MSG_CORE_INIT);
   UINT8_TO_STREAM(pp, NCI_CORE_PARAM_SIZE_INIT(nci_version));
-  if (nfc_cb.nci_version == NCI_VERSION_2_0) {
-    UINT8_TO_STREAM(pp, NCI2_0_CORE_INIT_CMD_BYTE_0);
-    UINT8_TO_STREAM(pp, NCI2_0_CORE_INIT_CMD_BYTE_1);
+  if (nfc_cb.nci_version >= NCI_VERSION_2_0) {
+    UINT8_TO_STREAM(pp, NCI2_X_CORE_INIT_CMD_BYTE_0);
+    UINT8_TO_STREAM(pp, NCI2_X_CORE_INIT_CMD_BYTE_1);
   }
 
   nfc_ncif_send_cmd(p);
@@ -384,7 +384,7 @@ uint8_t nci_snd_nfcee_discover(uint8_t discover_action) {
   NCI_MSG_BLD_HDR0(pp, NCI_MT_CMD, NCI_GID_EE_MANAGE);
   NCI_MSG_BLD_HDR1(pp, NCI_MSG_NFCEE_DISCOVER);
   UINT8_TO_STREAM(pp, NCI_PARAM_SIZE_DISCOVER_NFCEE(NFC_GetNCIVersion()));
-  if (NFC_GetNCIVersion() != NCI_VERSION_2_0) {
+  if (NFC_GetNCIVersion() < NCI_VERSION_2_0) {
     UINT8_TO_STREAM(pp, discover_action);
   }
   nfc_ncif_send_cmd(p);
@@ -642,7 +642,40 @@ uint8_t nci_snd_t3t_polling(uint16_t system_code, uint8_t rc, uint8_t tsn) {
   nfc_ncif_send_cmd(p);
   return (NCI_STATUS_OK);
 }
+#if (NXP_EXTNS == TRUE)
+/*******************************************************************************
+**
+** Function         nci_snd_removal_detection_cmd
+**
+** Description      compose and send RF Removal Detection command to command
+**                  queue
+**
+** Returns          status
+**
+*******************************************************************************/
+uint8_t nci_snd_removal_detection_cmd(uint8_t wait_time) {
+  NFC_HDR* p;
+  uint8_t* pp;
+  nfc_cb.reassembly = true;
 
+  p = NCI_GET_CMD_BUF(NCI_PARAM_LEN_REMOVE_DETECTION);
+  if (p == nullptr) return (NCI_STATUS_FAILED);
+
+  p->event = BT_EVT_TO_NFC_NCI;
+  p->len = NCI_MSG_HDR_SIZE + NCI_PARAM_LEN_REMOVE_DETECTION;
+  p->offset = NCI_MSG_OFFSET_SIZE;
+  p->layer_specific = 0;
+  pp = (uint8_t*)(p + 1) + p->offset;
+
+  NCI_MSG_BLD_HDR0(pp, NCI_MT_CMD, NCI_GID_RF_MANAGE);
+  NCI_MSG_BLD_HDR1(pp, NCI_MSG_RF_REMOVAL_DETECTION);
+  UINT8_TO_STREAM(pp, NCI_PARAM_LEN_REMOVE_DETECTION);
+  UINT8_TO_STREAM(pp, wait_time);
+
+  nfc_ncif_send_cmd(p);
+  return (NCI_STATUS_OK);
+}
+#endif
 /*******************************************************************************
 **
 ** Function         nci_snd_parameter_update_cmd

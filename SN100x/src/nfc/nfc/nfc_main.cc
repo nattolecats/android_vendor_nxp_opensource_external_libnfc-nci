@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021, 2023 NXP
+ *  Copyright 2018-2021, 2023-2024 NXP
  *
  ******************************************************************************/
  /******************************************************************************
@@ -73,10 +73,6 @@
 #endif
 #if (NFC_RW_ONLY == FALSE)
 
-#include "llcp_int.h"
-
-
-
 /* NFC mandates support for at least one logical connection;
  * Update max_conn to the NFCC capability on InitRsp */
 #if (NXP_EXTNS == TRUE)
@@ -91,7 +87,6 @@
 
 #else /* NFC_RW_ONLY */
 #define ce_init()
-#define llcp_init()
 
 #define NFC_SET_MAX_CONN_DEFAULT()
 
@@ -285,6 +280,12 @@ void nfc_enabled(tNFC_STATUS nfc_status, NFC_HDR* p_init_rsp_msg) {
     * We may need to change this, when we support multiple version of NFCC */
 
     evt_data.enable.nci_version = nfc_cb.nci_version;
+#if(NXP_EXTNS == TRUE)
+    /* check Removal Detection mode support bit as per NCI 2.3 spec */
+    nfc_cb.isRemovalDetectSupported = p[0] & NCI_REMOVAL_DETECTION_ENABLE_MASK;
+    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("Removal Detection in Poll Mode support: 0x%x",
+                               nfc_cb.isRemovalDetectSupported);
+#endif
     STREAM_TO_UINT32(evt_data.enable.nci_features, p);
     if (nfc_cb.nci_version == NCI_VERSION_1_0) {
       /* this byte is consumed in the top expression */
@@ -320,7 +321,7 @@ void nfc_enabled(tNFC_STATUS nfc_status, NFC_HDR* p_init_rsp_msg) {
     nfc_cb.nci_ctrl_size = *p++; /* Max Control Packet Payload Length */
     p_cb->init_credits = p_cb->num_buff = 0;
     nfc_set_conn_id(p_cb, NFC_RF_CONN_ID);
-    if (nfc_cb.nci_version == NCI_VERSION_2_0) {
+    if (nfc_cb.nci_version >= NCI_VERSION_2_0) {
       /* one byte is consumed in the top expression and
        * 3 bytes from uit16+uint8 below */
       lremain -= 4;
@@ -937,7 +938,6 @@ void NFC_Init(tHAL_NFC_ENTRY* p_hal_entry_tbl) {
   GKI_init_timer_list(&nfc_cb.quick_timer_queue);
   rw_init();
   ce_init();
-  llcp_init();
 #if(NXP_EXTNS == TRUE)
   }
 #endif
@@ -1773,5 +1773,18 @@ void NFC_SetFeatureList(tNFC_FW_VERSION nfc_fw_version) {
  *******************************************************************************/
 tNFC_chipType NFC_GetChipType() {
     return chipType;
+}
+
+/*******************************************************************************
+**
+** Function         NFC_IsRfRemovalDetectionSupported
+**
+** Description      Indicates if RF Removal Detection mode is upported by NFCC
+**
+** Returns          true if supported else false.
+**
+*******************************************************************************/
+bool NFC_IsRfRemovalDetectionSupported() {
+  return nfc_cb.isRemovalDetectSupported ? true : false;
 }
 #endif

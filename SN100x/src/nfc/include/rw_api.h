@@ -31,7 +31,7 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 *
-*  Copyright 2018-2020 NXP
+*  Copyright 2018-2020, 2023 NXP
 *
 ******************************************************************************/
 
@@ -1307,7 +1307,7 @@ extern tNFC_STATUS RW_I93ReadNDef(void);
 **                  NFC_STATUS_FAILED if I93 is busy or other error
 **
 *******************************************************************************/
-extern tNFC_STATUS RW_I93UpdateNDef(uint16_t length, uint8_t* p_data);
+extern tNFC_STATUS RW_I93UpdateNDef(uint32_t length, uint8_t* p_data);
 
 /*******************************************************************************
 **
@@ -1356,6 +1356,20 @@ extern tNFC_STATUS RW_I93SetTagReadOnly(void);
 **
 *****************************************************************************/
 extern tNFC_STATUS RW_I93PresenceCheck(void);
+
+/*****************************************************************************
+**
+** Function         RW_I93CheckLegacyProduct
+**
+** Description      Returns if the product is part of the legacy product list,
+**                  requiring (Extended)GetSystemInfo ISO commands to provide
+**                  memory information (number and size of blocks).
+**
+** Returns          true, if product is a legacy one
+**                  false, if full NFC forum T5T compliant
+**
+*****************************************************************************/
+extern bool RW_I93CheckLegacyProduct(uint8_t ic_manuf, uint8_t pdt_code);
 
 /*****************************************************************************
 **

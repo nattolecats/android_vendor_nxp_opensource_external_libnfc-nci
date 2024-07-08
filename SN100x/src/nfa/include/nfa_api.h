@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2022 NXP
+ *  Copyright 2018-2022, 2024 NXP
  *
  ******************************************************************************/
  /******************************************************************************
@@ -92,6 +92,7 @@
 #define NFA_STATUS_INVALID_PARAM NCI_STATUS_INVALID_PARAM
 /* Already started      */
 #define NFA_STATUS_ALREADY_STARTED NCI_STATUS_ALREADY_STARTED
+#define NFA_STATUS_RF_UNEXPECTED_DATA NCI_STATUS_RF_UNEXPECTED_DATA
 /* RF frame error       */
 #define NFA_STATUS_RF_FRAME_CORRUPTED NCI_STATUS_RF_FRAME_CORRUPTED
 /* RF protocol error    */
@@ -446,6 +447,12 @@ typedef struct {
 #define NFA_P2P_RESUMED_EVT 39
 /* T2T command completed */
 #define NFA_T2T_CMD_CPLT_EVT 40
+/* Core Generic Error */
+#define NFA_CORE_GENERIC_ERROR_EVT 44
+#if (NXP_EXTNS == TRUE)
+/* Removal Detection mode req failed event*/
+#define NFA_RF_REMOVAL_DETECTION_EVT 45
+#endif
 /* NFC deactivation type */
 #define NFA_DEACTIVATE_TYPE_IDLE NFC_DEACTIVATE_TYPE_IDLE
 #define NFA_DEACTIVATE_TYPE_SLEEP NFC_DEACTIVATE_TYPE_SLEEP
@@ -500,6 +507,9 @@ typedef struct {
 typedef struct {
   /* NFA_DEACTIVATE_TYPE_IDLE or NFA_DEACTIVATE_TYPE_SLEEP */
   tNFA_DEACTIVATE_TYPE type;
+#if (NXP_EXTNS == TRUE)
+  tNFC_DEACT_REASON reason; /* De-activate reason    */
+#endif
 } tNFA_DEACTIVATED;
 
 /* Structure for NFA_NDEF_DETECT_EVT event data */
@@ -1637,5 +1647,32 @@ extern void NFA_SetRssiMode(bool enable);
 **
 *******************************************************************************/
 extern bool NFA_IsRssiEnabled();
+
+/*******************************************************************************
+**
+** Function         NFA_IsRfRemovalDetectionSupported
+**
+** Description      Indicates if RF Removal Detection mode is upported by NFCC
+**
+** Returns          true if supported else false.
+**
+*******************************************************************************/
+bool NFA_IsRfRemovalDetectionSupported();
+
+/*******************************************************************************
+**
+** Function         NFA_SendRemovalDetectionCmd
+**
+** Description      This function is called to start the procedure of Removal
+**                  Deteciton in Poll Mode
+**
+**                  wait_timeout(ms) - Time duration in milliseconds for which
+**                  NFCC shall execute Removal Detection Procedure.
+**
+** Returns          NFA_STATUS_OK if successfully initiated
+**                  NFA_STATUS_FAILED otherwise
+**
+*******************************************************************************/
+tNFA_STATUS NFA_SendRemovalDetectionCmd(uint8_t wait_timeout);
 #endif
 #endif /* NFA_API_H */

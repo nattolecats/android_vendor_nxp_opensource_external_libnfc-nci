@@ -15,7 +15,7 @@
  *******************************************************************************/
 /******************************************************************************
  *
- *  Copyright 2019-2022 NXP
+ *  Copyright 2019-2023 NXP
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -501,9 +501,7 @@ static void rw_mfc_handle_write_op() {
   if (p_mfc->work_offset >= p_mfc->ndef_length) {
     evt_data.status = NFC_STATUS_OK;
     evt_data.p_data = NULL;
-#if (NXP_EXTNS == TRUE)
     rw_mfc_handle_op_complete();
-#endif
     (*rw_cb.p_cback)(RW_MFC_NDEF_WRITE_CPLT_EVT, (tRW_DATA*)&evt_data);
   } else {
     p_mfc->last_block_accessed.block = p_mfc->current_block;
@@ -532,9 +530,7 @@ static void rw_mfc_handle_write_op() {
     if (rw_mfc_writeBlock(p_mfc->next_block.block) != NFC_STATUS_OK) {
       evt_data.status = NFC_STATUS_FAILED;
       evt_data.p_data = NULL;
-#if (NXP_EXTNS == TRUE)
       rw_mfc_handle_op_complete();
-#endif
       (*rw_cb.p_cback)(RW_MFC_NDEF_WRITE_FAIL_EVT, (tRW_DATA*)&evt_data);
     }
   }
@@ -1074,19 +1070,13 @@ static void rw_mfc_handle_read_op(uint8_t* data) {
       saved_length = p_mfc->ndef_length;
 
       if (p_mfc->work_offset == 0) {
-#if (NXP_EXTNS != TRUE)
-        /* The Ndef Message offset may be present in the read 16 bytes */
-        offset = p_mfc->ndef_start_pos;
-#endif
 
         if (!rw_nfc_decodeTlv(data)) {
           failed = true;
           DLOG_IF(INFO, nfc_debug_enabled) << __func__ << " FAILED finding TLV";
         }
-#if (NXP_EXTNS == TRUE)
         /* Ndef message offset update post response TLV decode */
         offset = p_mfc->ndef_start_pos;
-#endif
       }
 
       if (!failed && saved_length >= p_mfc->ndef_length) {
@@ -1300,9 +1290,7 @@ static void rw_mfc_handle_op_complete(void) {
 
   p_mfc->last_block_accessed.auth = false;
   p_mfc->next_block.auth = false;
-#if (NXP_EXTNS == TRUE)
   p_mfc->current_block = 0;
-#endif
   p_mfc->state = RW_MFC_STATE_IDLE;
   p_mfc->substate = RW_MFC_SUBSTATE_NONE;
   return;
@@ -1416,6 +1404,13 @@ static void rw_mfc_process_error() {
 
   /* Retry sending command if retry-count < max */
   if (rw_cb.cur_retry < RW_MAX_RETRIES) {
+#if (NXP_EXTNS == TRUE)
+    /* check if buffer is NULL due to NFC Off request in parellel */
+    if (!p_mfc->p_cur_cmd_buf) {
+      LOG(ERROR) << StringPrintf("%s: p_mfc->p_cur_cmd_buf null", __func__);
+      return;
+    }
+#endif
     /* retry sending the command */
     rw_cb.cur_retry++;
 

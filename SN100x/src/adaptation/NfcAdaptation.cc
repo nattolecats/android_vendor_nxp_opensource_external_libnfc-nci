@@ -29,7 +29,7 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 *
-*  Copyright 2018-2023 NXP
+*  Copyright 2018-2024 NXP
 *
 ******************************************************************************/
 #include <aidl/android/hardware/nfc/BnNfc.h>
@@ -873,7 +873,7 @@ void NfcAdaptation::InitializeHalDeviceContext() {
       mHal = mHal_1_1 = mHal_1_2 = nullptr;
       LOG(INFO) << StringPrintf("%s: INfcAidl::fromBinder returned", func);
     }
-    LOG_FATAL_IF(mAidlHal == nullptr, "Failed to retrieve the NFC AIDL!");
+    LOG_ALWAYS_FATAL_IF(mAidlHal == nullptr, "Failed to retrieve the NFC AIDL!");
   } else {
     LOG(INFO) << StringPrintf("%s: INfc::getService() returned %p (%s)", func,
                               mHal.get(),
@@ -955,7 +955,7 @@ void NfcAdaptation::HalOpen(tHAL_NFC_CBACK* p_hal_cback,
   } else if (mHal_1_1 != nullptr) {
     mCallback = new NfcClientCallback(p_hal_cback, p_data_cback);
     mHal_1_1->open_1_1(mCallback);
-  } else {
+  } else if (mHal != nullptr) {
     mCallback = new NfcClientCallback(p_hal_cback, p_data_cback);
     mHal->open(mCallback);
   }
@@ -975,7 +975,7 @@ void NfcAdaptation::HalClose() {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", func);
   if (mAidlHal != nullptr) {
     mAidlHal->close(NfcCloseType::DISABLE);
-  } else {
+  } else if (mHal != nullptr) {
     mHal->close();
   }
 }
@@ -997,7 +997,7 @@ void NfcAdaptation::HalWrite(uint16_t data_len, uint8_t* p_data) {
     int ret;
     std::vector<uint8_t> aidl_data(p_data, p_data + data_len);
     mAidlHal->write(aidl_data, &ret);
-  } else {
+  } else if (mHal != nullptr) {
     ::android::hardware::nfc::V1_0::NfcData data;
     data.setToExternal(p_data, data_len);
     mHal->write(data);
@@ -1208,7 +1208,7 @@ void NfcAdaptation::HalCoreInitialized(uint16_t data_len,
   if (mAidlHal != nullptr) {
     // AIDL coreInitialized doesn't send data to HAL.
     mAidlHal->coreInitialized();
-  } else {
+  } else if (mHal != nullptr) {
     hidl_vec<uint8_t> data;
     data.setToExternal(p_core_init_rsp_params, data_len);
     mHal->coreInitialized(data);
@@ -1239,7 +1239,7 @@ bool NfcAdaptation::HalPrediscover() {
           << StringPrintf("%s wait for NFC_PRE_DISCOVER_CPLT_EVT", func);
       return true;
     }
-  } else {
+  } else if (mHal != nullptr) {
     mHal->prediscover();
   }
 
@@ -1264,7 +1264,7 @@ void NfcAdaptation::HalControlGranted() {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", func);
   if (mAidlHal != nullptr) {
     LOG(ERROR) << StringPrintf("Unsupported function %s", func);
-  } else {
+  } else if (mHal != nullptr) {
     mHal->controlGranted();
   }
 }
@@ -1283,7 +1283,7 @@ void NfcAdaptation::HalPowerCycle() {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", func);
   if (mAidlHal != nullptr) {
     mAidlHal->powerCycle();
-  } else {
+  } else if (mHal != nullptr) {
     mHal->powerCycle();
   }
 }
@@ -1424,6 +1424,11 @@ void NfcAdaptation::HalDownloadFirmwareCallback(nfc_event_t event,
           fw_dl_status = event_status;
         }
       }
+      break;
+    case HAL_HCI_NETWORK_RESET:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: HAL_HCI_NETWORK_RESET", func);
+      delete_stack_non_volatile_store(true);
       break;
 #endif
     case HAL_NFC_OPEN_CPLT_EVT: {

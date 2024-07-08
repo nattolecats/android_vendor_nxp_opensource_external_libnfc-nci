@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2023 NXP
+ *  Copyright 2018-2024 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -209,7 +209,7 @@ static void nfa_ee_update_route_size(tNFA_EE_ECB* p_cb) {
 #if (NXP_EXTNS != TRUE)
        (power_cfg & NCI_ROUTE_PWR_STATE_ON) &&
 #endif
-       (NFC_GetNCIVersion() == NCI_VERSION_2_0)) {
+       (NFC_GetNCIVersion() >= NCI_VERSION_2_0)) {
       if (p_cb->tech_screen_lock & nfa_ee_tech_mask_list[xx])
         power_cfg |= NCI_ROUTE_PWR_STATE_SCREEN_ON_LOCK();
       if (p_cb->tech_screen_off & nfa_ee_tech_mask_list[xx])
@@ -236,7 +236,7 @@ static void nfa_ee_update_route_size(tNFA_EE_ECB* p_cb) {
 #if (NXP_EXTNS != TRUE)
        (power_cfg & NCI_ROUTE_PWR_STATE_ON) &&
 #endif
-       (NFC_GetNCIVersion() == NCI_VERSION_2_0)) {
+       (NFC_GetNCIVersion() >= NCI_VERSION_2_0)) {
       if (p_cb->proto_screen_lock & nfa_ee_proto_mask_list[xx])
         power_cfg |= NCI_ROUTE_PWR_STATE_SCREEN_ON_LOCK();
       if (p_cb->proto_screen_off & nfa_ee_proto_mask_list[xx])
@@ -378,7 +378,7 @@ static void nfa_ee_add_tech_route_to_ecb(tNFA_EE_ECB* p_cb, uint8_t* pp,
 #if (NXP_EXTNS != TRUE)
        (power_cfg & NCI_ROUTE_PWR_STATE_ON) &&
 #endif
-       (NFC_GetNCIVersion() == NCI_VERSION_2_0)) {
+       (NFC_GetNCIVersion() >= NCI_VERSION_2_0)) {
       if (p_cb->tech_screen_lock & nfa_ee_tech_mask_list[xx])
         power_cfg |= NCI_ROUTE_PWR_STATE_SCREEN_ON_LOCK();
       if (p_cb->tech_screen_off & nfa_ee_tech_mask_list[xx])
@@ -429,7 +429,7 @@ static void nfa_ee_add_proto_route_to_ecb(tNFA_EE_ECB* p_cb, uint8_t* pp,
 #if (NXP_EXTNS != TRUE)
            (power_cfg & NCI_ROUTE_PWR_STATE_ON) &&
 #endif
-           (NFC_GetNCIVersion() == NCI_VERSION_2_0)) {
+           (NFC_GetNCIVersion() >= NCI_VERSION_2_0)) {
           if (p_cb->proto_screen_lock & nfa_ee_proto_mask_list[xx])
             power_cfg |= NCI_ROUTE_PWR_STATE_SCREEN_ON_LOCK();
           if (p_cb->proto_screen_off & nfa_ee_proto_mask_list[xx])
@@ -675,20 +675,10 @@ static void nfa_ee_conn_cback(uint8_t conn_id, tNFC_CONN_EVT event,
 *******************************************************************************/
 int nfa_ee_find_max_aid_cfg_len(void) {
   int max_lmrt_size = NFC_GetLmrtSize();
-  if (max_lmrt_size) {
-#if (NXP_EXTNS == TRUE)
-    /* In NCI2.0 Protocol 7816 routing is replaced with empty AID, size for Empty
-     * AID is considered to be handled dynamically during AID registration */
-    return max_lmrt_size - NFA_EE_MAX_PROTO_TECH_EXT_ROUTE_LEN - NFA_EE_EMPTY_AID_ROUTE_LEN;
-#else
+  if (max_lmrt_size > NFA_EE_MAX_PROTO_TECH_EXT_ROUTE_LEN) {
     return max_lmrt_size - NFA_EE_MAX_PROTO_TECH_EXT_ROUTE_LEN;
-#endif
   } else {
-#if (NXP_EXTNS == TRUE)
-    return NFA_EE_MAX_AID_CFG_LEN - 4;
-#else
-    return NFA_EE_MAX_AID_CFG_LEN;
-#endif
+    return 0;
   }
 }
 
@@ -922,7 +912,7 @@ void nfa_ee_api_discover(tNFA_EE_MSG* p_data) {
       << StringPrintf("in_use:%d", nfa_ee_cb.discv_timer.in_use);
   if (nfa_ee_cb.discv_timer.in_use) {
     nfa_sys_stop_timer(&nfa_ee_cb.discv_timer);
-    if (NFA_GetNCIVersion() != NCI_VERSION_2_0) NFC_NfceeDiscover(false);
+    if (NFA_GetNCIVersion() < NCI_VERSION_2_0) NFC_NfceeDiscover(false);
   }
   if (nfa_ee_cb.p_ee_disc_cback == nullptr &&
       NFC_NfceeDiscover(true) == NFC_STATUS_OK) {
@@ -1060,7 +1050,13 @@ void nfa_ee_api_mode_set(tNFA_EE_MSG* p_data) {
   tNFA_EE_MODE_SET mode_set;
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "handle:0x%02x mode:%d", p_cb->nfcee_id, p_data->mode_set.mode);
-  mode_set.status = NFC_NfceeModeSet(p_cb->nfcee_id, p_data->mode_set.mode);
+  if (!nfa_hciu_is_no_host_resetting()) {
+    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+        "Some NFCEE pending for reset. Returning failure for modeset");
+    mode_set.status = NFC_STATUS_REFUSED;
+  } else {
+    mode_set.status = NFC_NfceeModeSet(p_cb->nfcee_id, p_data->mode_set.mode);
+  }
   if (mode_set.status != NFC_STATUS_OK) {
     /* the api is rejected at NFC layer, report the failure status right away */
     mode_set.ee_handle = (tNFA_HANDLE)p_cb->nfcee_id | NFA_HANDLE_GROUP_EE;
@@ -1908,7 +1904,7 @@ void nfa_ee_report_disc_done(bool notify_enable_done) {
     if (notify_enable_done) {
       if (nfa_ee_cb.em_state == NFA_EE_EM_STATE_INIT_DONE) {
 #if (NXP_EXTNS == TRUE)
-        if (nfa_ee_cb.discv_timer.in_use && NFA_GetNCIVersion() == NCI_VERSION_2_0) {
+        if (nfa_ee_cb.discv_timer.in_use && NFA_GetNCIVersion() >= NCI_VERSION_2_0) {
           nfa_sys_stop_timer(&nfa_ee_cb.discv_timer);
         }
 #endif
@@ -2169,7 +2165,7 @@ void nfa_ee_nci_disc_ntf(tNFA_EE_MSG* p_data) {
     if ((nfa_ee_cb.num_ee_expecting == 0) &&
         (nfa_ee_cb.p_ee_disc_cback != nullptr)) {
       /* Discovery triggered by API function */
-      if (NFA_GetNCIVersion() != NCI_VERSION_2_0) NFC_NfceeDiscover(false);
+      if (NFA_GetNCIVersion() < NCI_VERSION_2_0) NFC_NfceeDiscover(false);
     }
   }
   switch (nfa_ee_cb.em_state) {
@@ -2236,7 +2232,7 @@ void nfa_ee_nci_disc_ntf(tNFA_EE_MSG* p_data) {
     memcpy(p_cb->ee_interface, p_ee->ee_interface, p_ee->num_interface);
     p_cb->num_tlvs = p_ee->num_tlvs;
     memcpy(p_cb->ee_tlv, p_ee->ee_tlv, p_ee->num_tlvs * sizeof(tNFA_EE_TLV));
-    if (NFA_GetNCIVersion() == NCI_VERSION_2_0)
+    if (NFA_GetNCIVersion() >= NCI_VERSION_2_0)
       p_cb->ee_power_supply_status = p_ee->nfcee_power_ctrl;
     if (nfa_ee_cb.em_state == NFA_EE_EM_STATE_RESTORING) {
       /* NCI spec says: An NFCEE_DISCOVER_NTF that contains a Protocol type of
@@ -2277,7 +2273,7 @@ void nfa_ee_nci_disc_ntf(tNFA_EE_MSG* p_data) {
         memcpy(p_info->ee_interface, p_cb->ee_interface, p_cb->num_interface);
         memcpy(p_info->ee_tlv, p_cb->ee_tlv,
                p_cb->num_tlvs * sizeof(tNFA_EE_TLV));
-        if (NFA_GetNCIVersion() == NCI_VERSION_2_0)
+        if (NFA_GetNCIVersion() >= NCI_VERSION_2_0)
           p_info->ee_power_supply_status = p_cb->ee_power_supply_status;
         nfa_ee_report_event(nullptr, NFA_EE_NEW_EE_EVT, &evt_data);
       }
@@ -2554,6 +2550,10 @@ void nfa_ee_nci_mode_set_rsp(tNFA_EE_MSG* p_data) {
 #endif
       p_cb->ee_status = NFC_NFCEE_STATUS_INACTIVE;
     }
+#if (NXP_EXTNS == TRUE)
+  } else if (p_rsp->status == NCI_STATUS_EE_TRANSMISSION_ERR) {
+    p_cb->ee_status = p_rsp->status;
+#endif
   } else if (p_rsp->mode == NFA_EE_MD_ACTIVATE) {
     p_cb->ee_status = NFC_NFCEE_STATUS_REMOVED;
   }
@@ -2587,7 +2587,7 @@ void nfa_ee_nci_mode_set_rsp(tNFA_EE_MSG* p_data) {
       nfa_ee_report_discover_req_evt();
     }
   }
-  if(NFA_GetNCIVersion() == NCI_VERSION_2_0
+  if(NFA_GetNCIVersion() >= NCI_VERSION_2_0
 #if (NXP_EXTNS == TRUE)
           || (p_rsp->nfcee_id == ESE_HOST)
 #endif
@@ -3180,7 +3180,7 @@ void nfa_ee_rout_timeout(__attribute__((unused)) tNFA_EE_MSG* p_data) {
 **
 *******************************************************************************/
 void nfa_ee_discv_timeout(__attribute__((unused)) tNFA_EE_MSG* p_data) {
-  if (NFA_GetNCIVersion() != NCI_VERSION_2_0) NFC_NfceeDiscover(false);
+  if (NFA_GetNCIVersion() < NCI_VERSION_2_0) NFC_NfceeDiscover(false);
   if (nfa_ee_cb.p_enable_cback)
     (*nfa_ee_cb.p_enable_cback)(NFA_EE_DISC_STS_OFF);
 }

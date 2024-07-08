@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2023 NXP
+ *  Copyright 2018-2024 NXP
  *
  ******************************************************************************/
  /******************************************************************************
@@ -69,7 +69,7 @@
 #define NXP_EN_PN557     1
 #define NXP_EN_SN300U    1
 #define NXP_ANDROID_VER (14U)        /* NXP android version */
-#define NFC_NXP_MW_VERSION_MAJ (0x05) /* MW Major Version */
+#define NFC_NXP_MW_VERSION_MAJ (0x0F) /* MW Major Version */
 #define NFC_NXP_MW_VERSION_MIN (0x00) /* MW Minor Version */
 #define NFC_NXP_MW_CUSTOMER_ID (0x00) /* MW Customer Id */
 #define NFC_NXP_MW_RC_VERSION  (0x00) /* MW RC Version */
@@ -120,6 +120,7 @@
 #define NFC_STATUS_ACTIVATION_FAILED NCI_STATUS_ACTIVATION_FAILED
 /* Tear Down Error      */
 #define NFC_STATUS_TEAR_DOWN NCI_STATUS_TEAR_DOWN
+#define NFC_STATUS_RF_FRAME_CORRUPTED NCI_STATUS_RF_FRAME_CORRUPTED
 /* RF transmission error*/
 #define NFC_STATUS_RF_TRANSMISSION_ERR NCI_STATUS_RF_TRANSMISSION_ERR
 /* RF protocol error    */
@@ -190,6 +191,8 @@ typedef uint8_t tNFC_STATUS;
 #define NXP_NFC_ESE_CONN_PIPE_STATUS  ((unsigned char)0x22)
 #define NXP_NFC_ESE_APDU_PIPE_STATUS  ((unsigned char)0x23)
 #define NXP_NFC_EUICC_APDU_PIPE_STATUS ((unsigned char)0x12)
+#define NXP_NFC_EUICC1_CONN_PIPE_STATUS ((unsigned char)0x76)
+#define NXP_NFC_EUICC2_CONN_PIPE_STATUS ((unsigned char)0x77)
 /**********************************************
  * NFC Config Parameter IDs defined by NXP NFC
  **********************************************/
@@ -435,6 +438,14 @@ typedef struct {
 #define NFC_NFCEE_STS_INIT_COMPLETED             NCI_NFCEE_STS_INIT_COMPLETED
 #define NFC_NFCEE_STS_PMUVCC_OFF                 NCI_NFCEE_STS_PMUVCC_OFF
 #define NFC_NFCEE_STS_PROP_UNRECOVERABLE_ERROR   NCI_NFCEE_STS_PROP_NONE
+
+/*EE TYPE*/
+typedef enum {
+  NFC_EE_TYPE_NONE = 0,
+  NFC_EE_TYPE_ESE,
+  NFC_EE_TYPE_EUICC,
+  NFC_EE_TYPE_EUICC_WITH_APDUPIPE19,
+} nfc_ee_type_t;
 #endif
 
 /* NFCEE connected and inactive */
@@ -526,6 +537,7 @@ typedef uint8_t tNFC_RF_STS;
 typedef uint8_t tNFC_RF_TECH;
 
 extern uint8_t NFC_GetNCIVersion();
+extern bool NFC_IsRfRemovalDetectionSupported();
 
 /* Supported Protocols */
 #define NFC_PROTOCOL_UNKNOWN NCI_PROTOCOL_UNKNOWN /* Unknown */
@@ -538,7 +550,7 @@ extern uint8_t NFC_GetNCIVersion();
 /* Type5Tag    - NFC-V/ISO15693*/
 #define NFC_PROTOCOL_T5T NFC_PROTOCOL_T5T_(NFC_GetNCIVersion())
 #define NFC_PROTOCOL_T5T_(x) \
-  (((x) == NCI_VERSION_2_0) ? NCI_PROTOCOL_T5T : NCI_PROTOCOL_15693)
+  (((x) >= NCI_VERSION_2_0) ? NCI_PROTOCOL_T5T : NCI_PROTOCOL_15693)
 /* Type 4A,4B  - NFC-A or NFC-B   */
 #define NFC_PROTOCOL_ISO_DEP NCI_PROTOCOL_ISO_DEP
 /* NFCDEP/LLCP - NFC-A or NFC-F       */
@@ -739,6 +751,10 @@ enum {
   NFC_SELECT_DEVT,                 /* Status of NFC_DiscoverySelect    */
   NFC_ACTIVATE_DEVT,               /* RF interface is activated        */
   NFC_DEACTIVATE_DEVT              /* Status of RF deactivation        */
+#if (NXP_EXTNS == TRUE)
+  ,
+  NFC_REMOVAL_DETECTION_DEVT /* Status of RF Removal Detection   */
+#endif
 };
 typedef uint16_t tNFC_DISCOVER_EVT;
 
@@ -953,6 +969,13 @@ typedef struct {
   tNFC_DEACT_REASON reason; /* De-activate reason    */
 } tNFC_DEACTIVATE_DEVT;
 
+#if (NXP_EXTNS == TRUE)
+/* the data type associated with NFC_REMOVAL_DETECTION_DEVT   */
+typedef struct {
+  tNFC_STATUS status; /* The event status.        */
+  bool is_ntf;        /* TRUE, if deactivate notif*/
+} tNFC_REMOVAL_DETECTION_DEVT;
+#endif
 typedef union {
   tNFC_STATUS status; /* The event status.        */
   tNFC_START_DEVT start;
@@ -961,6 +984,9 @@ typedef union {
   tNFC_STOP_DEVT stop;
   tNFC_ACTIVATE_DEVT activate;
   tNFC_DEACTIVATE_DEVT deactivate;
+#if (NXP_EXTNS == TRUE)
+  tNFC_REMOVAL_DETECTION_DEVT removal_detection;
+#endif
 } tNFC_DISCOVER;
 
 typedef struct {

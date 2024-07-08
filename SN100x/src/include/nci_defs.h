@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2022 NXP
+ *  Copyright 2018-2022, 2024 NXP
  *
  ******************************************************************************/
 /******************************************************************************
@@ -160,8 +160,8 @@
 /* Logical target ID 0x01-0xFE */
 
 /* CORE_RESET_NTF reset trigger type*/
-#define NCI2_0_RESET_TRIGGER_TYPE_POWERED_ON 0x01
-#define NCI2_0_RESET_TRIGGER_TYPE_CORE_RESET_CMD_RECEIVED 0x02
+#define NCI2_X_RESET_TRIGGER_TYPE_POWERED_ON 0x01
+#define NCI2_X_RESET_TRIGGER_TYPE_CORE_RESET_CMD_RECEIVED 0x02
 
 /* Status Codes */
 #define NCI_STATUS_OK 0x00
@@ -186,6 +186,7 @@
 #define NCI_STATUS_RF_TRANSMISSION_ERR 0xB0
 #define NCI_STATUS_RF_PROTOCOL_ERR 0xB1
 #define NCI_STATUS_TIMEOUT 0xB2
+#define NCI_STATUS_RF_UNEXPECTED_DATA 0xB3
 /* NFCEE Interface */
 #define NCI_STATUS_EE_INTF_ACTIVE_FAIL 0xC0
 #define NCI_STATUS_EE_TRANSMISSION_ERR 0xC1
@@ -239,6 +240,7 @@
 #if (NXP_EXTNS == TRUE)
 #define NCI_MSG_RF_INTF_EXT_START 12
 #define NCI_MSG_RF_INTF_EXT_STOP 13
+#define NCI_MSG_RF_REMOVAL_DETECTION 18
 #endif
 #define NCI_MSG_RF_ISO_DEP_NAK_PRESENCE 16
 
@@ -263,9 +265,9 @@
  **********************************************/
 #define NCI_FEAT_HCI_NETWORK 0x00000008
 
-#define NCI_CORE_PARAM_SIZE_INIT(X) (((X) == NCI_VERSION_2_0) ? (0x02) : (0x00))
-#define NCI2_0_CORE_INIT_CMD_BYTE_0 0x00
-#define NCI2_0_CORE_INIT_CMD_BYTE_1 0x00
+#define NCI_CORE_PARAM_SIZE_INIT(X) (((X) >= NCI_VERSION_2_0) ? (0x02) : (0x00))
+#define NCI2_X_CORE_INIT_CMD_BYTE_0 0x00
+#define NCI2_X_CORE_INIT_CMD_BYTE_1 0x00
 
 /* Status (1 octet) and number of params */
 #define NCI_CORE_PARAM_SIZE_SET_POWER_SUB_STATE 0x01
@@ -289,7 +291,7 @@
 
 /* Discovery Action (1 octet) */
 #define NCI_PARAM_SIZE_DISCOVER_NFCEE(X) \
-  (((X) == NCI_VERSION_2_0) ? 0X00 : 0X01)
+  (((X) >= NCI_VERSION_2_0) ? 0X00 : 0X01)
 
 #define NCI_DISCOVER_ACTION_DISABLE 0
 #define NCI_DISCOVER_ACTION_ENABLE 1
@@ -330,6 +332,7 @@
 #define NCI_STATUS_PMU_TXLDO_OVERCURRENT 0xE3
 #define NCI_STATUS_GPADC_ERROR 0xE7
 #define NCI_NFCEE_STS_COLD_TEMP_THRESOLD_REACHED 0xEB
+#define NCI_DISCOVERY_TARGET_ACTIVATION_FAILED 0xA1
 
 #define NCI_NFCEE_STS_CONN_ACTIVE 0x00
 #define NCI_NFCEE_STS_CONN_INACTIVE 0x01
@@ -361,7 +364,14 @@
 #define NCI_DEACTIVATE_REASON_NFCB_BAD_AFI 3 /* NFC-B Bad AFI    */
 /* DH Request Failed due to error */
 #define NCI_DEACTIVATE_REASON_DH_REQ_FAILED 4
-
+#if (NXP_EXTNS == TRUE)
+/* Low Power Removal mode: Tag is removed from field */
+#define NCI_DEACTIVATE_REASON_RF_REMOTE_ENDPOINT_REMOVED 0x05
+/* Low Power Removal mode: Wait Time is over, Tag is stil in field */
+#define NCI_DEACTIVATE_REASON_RF_TIMEOUT_EXCEPTION 0x06
+#define NCI_DEACTIVATE_REASON_RF_PROTOCOL_EXCEPTION 0x07
+#define NCI_DEACTIVATE_REASON_RF_FO_DETECTED 0x08
+#endif
 /* The NFCEE status in NFCEE Status Notification */
 typedef uint8_t tNCI_EE_NTF_STATUS;
 
@@ -496,13 +506,13 @@ typedef uint8_t tNCI_DISCOVERY_TYPE;
 #define NCI_ROUTE_PWR_STATE_BATT_OFF 0x04
 /* The device is screen off Unlock mode */
 #define NCI_ROUTE_PWR_STATE_SCREEN_OFF_UNLOCK() \
-  ((NFC_GetNCIVersion() == NCI_VERSION_2_0) ? 0x08 : 0x80)
+  ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) ? 0x08 : 0x80)
 /* The device is screen on lock mode */
 #define NCI_ROUTE_PWR_STATE_SCREEN_ON_LOCK() \
-  ((NFC_GetNCIVersion() == NCI_VERSION_2_0) ? 0x10 : 0x40)
+  ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) ? 0x10 : 0x40)
 /* The device is screen off lock mode */
 #define NCI_ROUTE_PWR_STATE_SCREEN_OFF_LOCK() \
-  ((NFC_GetNCIVersion() == NCI_VERSION_2_0) ? 0x20 : 0x00)
+  ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) ? 0x20 : 0x00)
 
 /* Hardware / Registration Identification  */
 #define NCI_NFCEE_TAG_HW_ID 0x00
@@ -620,9 +630,11 @@ typedef uint8_t tNCI_DISCOVERY_TYPE;
 #define NCI_PARAM_LEN_LF_PROTOCOL 1
 #define NCI_PARAM_LEN_LF_T3T_FLAGS2 2
 #define NCI_PARAM_LEN_LF_T3T_PMM 8
-#define NCI_PARAM_LEN_LF_T3T_ID(X) (((X) == NCI_VERSION_2_0) ? (0x12) : (0x0A))
+#define NCI_PARAM_LEN_LF_T3T_ID(X) (((X) >= NCI_VERSION_2_0) ? (0x12) : (0x0A))
 #define NCI_PARAM_LEN_LF_CON_ADV_FEAT 1
-
+#if (NXP_EXTNS == TRUE)
+#define NCI_PARAM_LEN_REMOVE_DETECTION 0x01 /* Param: Wait Time */
+#endif
 #define NCI_PARAM_LEN_LF_T3T_RD_ALLOWED 1  // Listen F NCI2.0 Parameter
 
 #define NCI_PARAM_LEN_FWI 1
@@ -647,7 +659,10 @@ typedef uint8_t tNCI_DISCOVERY_TYPE;
 #define NCI_POLLING_DH_ENABLE_MASK 0x01
 /* SCBR support check with Core Init resp OCT1 byte */
 #define NCI_SCBR_MASK 0x10
-
+#if (NXP_EXTNS == TRUE)
+/* RF RemovalDetection support check with Core Init resp OCT0 byte */
+#define NCI_REMOVAL_DETECTION_ENABLE_MASK 0x20
+#endif
 /* AID matching is allowed when the SELECT AID is longer */
 #define NCI_ROUTE_QUAL_LONG_SELECT 0x10
 /* AID matching is allowed when the SELECT AID is shorter */

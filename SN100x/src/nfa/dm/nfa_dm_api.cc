@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2022 NXP
+ *  Copyright 2018-2024 NXP
  *
  ******************************************************************************/
 
@@ -92,13 +92,11 @@ void NFA_Init(tHAL_NFC_ENTRY* p_hal_entry_tbl) {
 #if (NXP_EXTNS == TRUE)
   if (NfcAdaptation::GetInstance().NFA_GetBootMode() == NFA_NORMAL_BOOT_MODE) {
 #endif
-  nfa_p2p_init();
-  nfa_snep_init(false);
-  nfa_rw_init();
-  nfa_ce_init();
-  nfa_ee_init();
-  if (nfa_ee_max_ee_cfg != 0) {
-    nfa_dm_cb.get_max_ee = p_hal_entry_tbl->get_max_ee;
+    nfa_rw_init();
+    nfa_ce_init();
+    nfa_ee_init();
+    if (nfa_ee_max_ee_cfg != 0) {
+      nfa_dm_cb.get_max_ee = p_hal_entry_tbl->get_max_ee;
 #if (NXP_EXTNS == TRUE)
     nfa_t4tnfcee_init();
     nfa_scr_init();
@@ -758,128 +756,28 @@ tNFA_STATUS NFA_ChangeDiscoveryTech (tNFA_TECHNOLOGY_MASK pollTech, tNFA_TECHNOL
 
     DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf ("NFA_ChangeDiscoveryTech () 0x%X 0x%X", pollTech, listenTech);
+    DLOG_IF(INFO, nfc_debug_enabled)
+        << StringPrintf("Current DiscoveryTech () 0x%X 0x%X",
+                        nfa_dm_cb.pollTech, nfa_dm_cb.listenTech);
 
-    if ((p_msg = (tNFA_DM_API_CHANGE_DISCOVERY_TECH *) GKI_getbuf (sizeof (tNFA_DM_API_CHANGE_DISCOVERY_TECH))) != nullptr)
-    {
-        p_msg->hdr.event = NFA_DM_API_CHANGE_DISCOVERY_TECH_EVT;
-        p_msg->pollTech = pollTech;
-        p_msg->listenTech = listenTech;
-        nfa_sys_sendmsg (p_msg);
+    if (nfa_dm_cb.pollTech == pollTech && nfa_dm_cb.listenTech == listenTech) {
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "Current DiscoveryTech same as ChangeDiscoveryTech request, rejecting "
+          "request");
+      return (NFA_STATUS_REJECTED);
+    } else if ((p_msg = (tNFA_DM_API_CHANGE_DISCOVERY_TECH*)GKI_getbuf(
+                    sizeof(tNFA_DM_API_CHANGE_DISCOVERY_TECH))) != nullptr) {
+      p_msg->hdr.event = NFA_DM_API_CHANGE_DISCOVERY_TECH_EVT;
+      p_msg->pollTech = pollTech;
+      p_msg->listenTech = listenTech;
+      nfa_sys_sendmsg(p_msg);
 
-        return (NFA_STATUS_OK);
+      return (NFA_STATUS_OK);
     }
 
     return (NFA_STATUS_FAILED);
 }
 #endif
-/*******************************************************************************
-**
-** Function         NFA_PauseP2p
-**
-** Description      Pause P2P services.
-**                  NFA_P2P_PAUSED_EVT will be returned after P2P services are
-**                  disabled.
-**
-**                  The P2P services enabled by NFA_P2p* API functions are not
-**                  available. NFA_ResumeP2p() is called to resume the P2P
-**                  services.
-**
-** Note:            If RF discovery is started,
-**                  NFA_StopRfDiscovery()/NFA_RF_DISCOVERY_STOPPED_EVT should
-**                  happen before calling this function
-**
-** Returns          NFA_STATUS_OK if successfully initiated
-**                  NFA_STATUS_FAILED otherwise
-**
-*******************************************************************************/
-tNFA_STATUS NFA_PauseP2p(void) {
-  NFC_HDR* p_msg;
-
-  DLOG_IF(INFO, nfc_debug_enabled) << __func__;
-
-  p_msg = (NFC_HDR*)GKI_getbuf(sizeof(NFC_HDR));
-  if (p_msg != nullptr) {
-    p_msg->event = NFA_DM_API_PAUSE_P2P_EVT;
-
-    nfa_sys_sendmsg(p_msg);
-
-    return (NFA_STATUS_OK);
-  }
-
-  return (NFA_STATUS_FAILED);
-}
-
-/*******************************************************************************
-**
-** Function         NFA_ResumeP2p
-**
-** Description      Resume P2P services.
-**                  NFA_P2P_RESUMED_EVT will be returned after P2P services are.
-**                  enables again.
-**
-** Note:            If RF discovery is started,
-**                  NFA_StopRfDiscovery()/NFA_RF_DISCOVERY_STOPPED_EVT should
-**                  happen before calling this function
-**
-** Returns          NFA_STATUS_OK if successfully initiated
-**                  NFA_STATUS_FAILED otherwise
-**
-*******************************************************************************/
-tNFA_STATUS NFA_ResumeP2p(void) {
-  NFC_HDR* p_msg;
-
-  DLOG_IF(INFO, nfc_debug_enabled) << __func__;
-
-  p_msg = (NFC_HDR*)GKI_getbuf(sizeof(NFC_HDR));
-  if (p_msg != nullptr) {
-    p_msg->event = NFA_DM_API_RESUME_P2P_EVT;
-
-    nfa_sys_sendmsg(p_msg);
-
-    return (NFA_STATUS_OK);
-  }
-
-  return (NFA_STATUS_FAILED);
-}
-
-/*******************************************************************************
-**
-** Function         NFA_SetP2pListenTech
-**
-** Description      This function is called to set listen technology for
-**                  NFC-DEP. This funtion may be called before or after starting
-**                  any server on NFA P2P/CHO/SNEP.
-**                  If there is no technology for NFC-DEP, P2P listening will be
-**                  stopped.
-**
-**                  NFA_SET_P2P_LISTEN_TECH_EVT without data will be returned.
-**
-** Note:            If RF discovery is started,
-**                  NFA_StopRfDiscovery()/NFA_RF_DISCOVERY_STOPPED_EVT should
-**                  happen before calling this function
-**
-** Returns          NFA_STATUS_OK if successfully initiated
-**                  NFA_STATUS_FAILED otherwise
-**
-*******************************************************************************/
-tNFA_STATUS NFA_SetP2pListenTech(tNFA_TECHNOLOGY_MASK tech_mask) {
-  tNFA_DM_API_SET_P2P_LISTEN_TECH* p_msg;
-
-  DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("tech_mask:0x%X", tech_mask);
-
-  p_msg = (tNFA_DM_API_SET_P2P_LISTEN_TECH*)GKI_getbuf(
-      sizeof(tNFA_DM_API_SET_P2P_LISTEN_TECH));
-  if (p_msg != nullptr) {
-    p_msg->hdr.event = NFA_DM_API_SET_P2P_LISTEN_TECH_EVT;
-    p_msg->tech_mask = tech_mask;
-
-    nfa_sys_sendmsg(p_msg);
-
-    return (NFA_STATUS_OK);
-  }
-
-  return (NFA_STATUS_FAILED);
-}
 
 /*******************************************************************************
 **
@@ -1546,6 +1444,7 @@ tNFA_MW_VERSION NFA_GetMwVersion() {
   mwVer.validation |= (NXP_EN_SN110U << 14);
   mwVer.validation |= (NXP_EN_SN220U << 15);
   mwVer.validation |= (NXP_EN_PN560 << 16);
+  mwVer.validation |= (NXP_EN_SN300U << 17);
   mwVer.validation |= (NXP_EN_PN557 << 11);
   mwVer.android_version = NXP_ANDROID_VER;
   DLOG_IF(INFO, nfc_debug_enabled)
@@ -1589,5 +1488,48 @@ bool NFA_checkNfcStateBusy() {
 void NFA_SetPreferredUiccId(uint8_t uicc_id) {
     DLOG_IF(INFO, nfc_debug_enabled) << __func__;
     nfa_dm_cb.selected_uicc_id = uicc_id;
+}
+
+/*******************************************************************************
+**
+** Function         NFA_IsRfRemovalDetectionSupported
+**
+** Description      Indicates if RF Removal Detection mode is upported by NFCC
+**                  and by activated RF Interface.
+**
+** Returns          true if supported else false.
+**
+*******************************************************************************/
+bool NFA_IsRfRemovalDetectionSupported() {
+  return NFC_IsRfRemovalDetectionSupported();
+}
+/*******************************************************************************
+**
+** Function         NFA_SendRemovalDetectionCmd
+**
+** Description      This function is called to start the procedure of Removal
+**                  Deteciton in Poll Mode
+**
+**                  wait_timeout(ms) - Time duration in milliseconds for which
+**                  NFCC shall execute Removal Detection Procedure.
+**
+** Returns          NFA_STATUS_OK if successfully initiated
+**                  NFA_STATUS_FAILED otherwise
+**
+*******************************************************************************/
+tNFA_STATUS NFA_SendRemovalDetectionCmd(uint8_t wait_timeout) {
+  uint16_t size = sizeof(tNFA_DM_API_ENABLE_RF_REMOVAL_DETECTION);
+  tNFA_DM_API_ENABLE_RF_REMOVAL_DETECTION* p_msg =
+      (tNFA_DM_API_ENABLE_RF_REMOVAL_DETECTION*)GKI_getbuf(size);
+
+  if (p_msg != nullptr) {
+    p_msg->hdr.event = NFA_DM_API_ENABLE_RF_REMOVAL_DETECTION_EVT;
+    p_msg->wait_time = wait_timeout;
+
+    nfa_sys_sendmsg(p_msg);
+    return NFA_STATUS_OK;
+  }
+
+  return NFA_STATUS_FAILED;
 }
 #endif

@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2021,2023 NXP
  *
  ******************************************************************************/
 
@@ -409,8 +409,8 @@ bool rw_i93_process_sys_info(uint8_t* p_data, uint16_t length) {
               return false;
             }
           }
-        } else if ((p_i93->product_version == RW_I93_STM_LRI2K) &&
-                   (p_i93->ic_reference == 0x21)) {
+        } else if (p_i93->product_version == RW_I93_STM_LRI2K) {
+
           /* workaround of byte order in memory size information */
           p_i93->num_block = 64;
           p_i93->block_size = 4;
@@ -708,8 +708,11 @@ bool rw_i93_send_to_lower(NFC_HDR* p_msg) {
     return false;
   }
 
+  int timeout = (RW_I93_TOUT_RESP * QUICK_TIMER_TICKS_PER_SEC) / 1000;
+  if (rw_cb.tcb.i93.in_pres_check)
+    timeout = (200 * QUICK_TIMER_TICKS_PER_SEC) / 1000;
   nfc_start_quick_timer(&rw_cb.tcb.i93.timer, NFC_TTYPE_RW_I93_RESPONSE,
-                        (RW_I93_TOUT_RESP * QUICK_TIMER_TICKS_PER_SEC) / 1000);
+                        timeout);
 
   return true;
 }
@@ -1695,17 +1698,16 @@ tNFC_STATUS rw_i93_send_cmd_get_multi_block_sec(uint16_t first_block_number,
 ** Returns          tNFC_STATUS
 **
 *******************************************************************************/
-tNFC_STATUS rw_i93_get_next_blocks(uint16_t offset) {
+tNFC_STATUS rw_i93_get_next_blocks(uint32_t offset) {
   tRW_I93_CB* p_i93 = &rw_cb.tcb.i93;
-  uint16_t first_block;
-  uint16_t num_block;
+  uint32_t first_block;
+  uint32_t num_block;
 
   DLOG_IF(INFO, nfc_debug_enabled) << __func__;
 
   first_block = offset / p_i93->block_size;
 
   /* more blocks, more efficent but more error rate */
-
   if (p_i93->intl_flags & RW_I93_FLAG_READ_MULTI_BLOCK) {
     num_block = RW_I93_READ_MULTI_BLOCK_SIZE / p_i93->block_size;
 
@@ -1768,7 +1770,6 @@ tNFC_STATUS rw_i93_get_next_blocks(uint16_t offset) {
         }
       }
     }
-
     if (num_block == 0) {
       /* only one remaining block to read */
       return rw_i93_send_cmd_read_single_block(first_block, false);
@@ -2245,7 +2246,7 @@ void rw_i93_sm_detect_ndef(NFC_HDR* p_resp) {
 void rw_i93_sm_read_ndef(NFC_HDR* p_resp) {
   uint8_t* p = (uint8_t*)(p_resp + 1) + p_resp->offset;
   uint8_t flags;
-  uint16_t offset, length = p_resp->len;
+  uint32_t offset, length = p_resp->len;
   tRW_I93_CB* p_i93 = &rw_cb.tcb.i93;
   tRW_DATA rw_data;
 
@@ -2299,7 +2300,6 @@ void rw_i93_sm_read_ndef(NFC_HDR* p_resp) {
     /* in case of no Ndef data included */
     p_resp->len = 0;
   }
-
   /* if read all of NDEF data */
   if (p_i93->rw_length >= p_i93->ndef_length) {
     /* remove extra btyes in the last block */
@@ -2324,7 +2324,6 @@ void rw_i93_sm_read_ndef(NFC_HDR* p_resp) {
       // free buffer, if len == 0
       GKI_freebuf(p_resp);
     }
-
     /* this will make read data from next block */
     p_i93->rw_offset += length;
 
@@ -3120,10 +3119,6 @@ void rw_i93_handle_error(tNFC_STATUS status) {
 
   if (rw_cb.p_cback) {
     rw_data.status = status;
-    if ((NFC_STATUS_TIMEOUT == rw_data.status) &&
-        (p_i93->sent_cmd != I93_CMD_STAY_QUIET)) {
-      p_i93->state = RW_I93_STATE_IDLE;
-    }
     switch (p_i93->state) {
       case RW_I93_STATE_IDLE: /* in case of RawFrame */
         event = RW_I93_INTF_ERROR_EVT;
@@ -3174,6 +3169,11 @@ void rw_i93_handle_error(tNFC_STATUS status) {
 
       case RW_I93_STATE_PRESENCE_CHECK:
         event = RW_I93_PRESENCE_CHECK_EVT;
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s - in pres check, may change status:0x%X", __func__, status);
+        if (status == NFC_STATUS_TIMEOUT) {
+          rw_data.status = NFC_STATUS_RF_FRAME_CORRUPTED;
+        }
         break;
 
       default:
@@ -3207,6 +3207,10 @@ void rw_i93_process_timeout(TIMER_LIST_ENT* p_tle) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s - event=%d", __func__, p_tle->event);
 
+  if (rw_cb.tcb.i93.state == RW_I93_STATE_PRESENCE_CHECK) {
+    rw_i93_handle_error(NFC_STATUS_RF_FRAME_CORRUPTED);
+    return;
+  }
   if (p_tle->event == NFC_TTYPE_RW_I93_RESPONSE) {
     if ((rw_cb.tcb.i93.retry_count < RW_MAX_RETRIES) &&
         (rw_cb.tcb.i93.p_retry_cmd) &&
@@ -3228,6 +3232,15 @@ void rw_i93_process_timeout(TIMER_LIST_ENT* p_tle) {
       GKI_freebuf(rw_cb.tcb.i93.p_retry_cmd);
       rw_cb.tcb.i93.p_retry_cmd = nullptr;
       rw_cb.tcb.i93.retry_count = 0;
+    }
+
+    if ((rw_cb.tcb.i93.sent_cmd == I93_CMD_GET_SYS_INFO) ||
+        (rw_cb.tcb.i93.sent_cmd == I93_CMD_EXT_GET_SYS_INFO)) {
+        /* read CC in the first block */
+        rw_cb.tcb.i93.intl_flags = 0;
+        rw_i93_send_cmd_read_single_block(0x0000, false);
+        rw_cb.tcb.i93.sub_state = RW_I93_SUBSTATE_WAIT_CC;
+        return;
     }
     rw_i93_handle_error(NFC_STATUS_TIMEOUT);
   } else {
@@ -4016,7 +4029,9 @@ tNFC_STATUS RW_I93DetectNDef(void) {
 
   } else if (((rw_cb.tcb.i93.num_block == 0) ||
               (rw_cb.tcb.i93.block_size == 0)) &&
-             (!appl_dta_mode_flag)) {
+             ((!appl_dta_mode_flag) &&
+			  RW_I93CheckLegacyProduct(rw_cb.tcb.i93.uid[1], rw_cb.tcb.i93.uid[2]))) {
+
     status =
         rw_i93_send_cmd_get_sys_info(rw_cb.tcb.i93.uid, I93_FLAG_PROT_EXT_NO);
     sub_state = RW_I93_SUBSTATE_WAIT_SYS_INFO;
@@ -4101,7 +4116,7 @@ tNFC_STATUS RW_I93ReadNDef(void) {
 **                  NFC_STATUS_FAILED if I93 is busy or other error
 **
 *******************************************************************************/
-tNFC_STATUS RW_I93UpdateNDef(uint16_t length, uint8_t* p_data) {
+tNFC_STATUS RW_I93UpdateNDef(uint32_t length, uint8_t* p_data) {
   uint16_t block_number;
 
   DLOG_IF(INFO, nfc_debug_enabled)
@@ -4297,6 +4312,7 @@ tNFC_STATUS RW_I93PresenceCheck(void) {
   } else if (rw_cb.tcb.i93.state != RW_I93_STATE_IDLE) {
     return NFC_STATUS_BUSY;
   } else {
+    rw_cb.tcb.i93.in_pres_check = true;
     if (rw_cb.tcb.i93.i93_t5t_mode == RW_I93_GET_SYS_INFO_MEM_INFO) {
       /* The support of AFI by the VICC is optional, so do not include AFI */
       status = rw_i93_send_cmd_inventory(rw_cb.tcb.i93.uid, false, 0x00);
@@ -4305,6 +4321,7 @@ tNFC_STATUS RW_I93PresenceCheck(void) {
       rw_cb.tcb.i93.intl_flags &= ~RW_I93_FLAG_EXT_COMMANDS;
       status = rw_i93_send_cmd_read_single_block(0, false);
     }
+    rw_cb.tcb.i93.in_pres_check = false;
 
     if (status == NFC_STATUS_OK) {
       /* do not retry during presence check */
@@ -4314,6 +4331,59 @@ tNFC_STATUS RW_I93PresenceCheck(void) {
   }
 
   return (status);
+}
+
+/*****************************************************************************
+**
+** Function         RW_I93CheckLegacyProduct
+**
+** Description      Check if product is legacy and if its definition
+**                  (blocks size, number of blocks) needs to be retrieved
+**                  with (Extended)GetSystemInfo command.
+**
+** Returns          true if legacy product
+**                  else false
+**
+*****************************************************************************/
+bool RW_I93CheckLegacyProduct(uint8_t ic_manuf, uint8_t pdt_code) {
+
+  DLOG_IF(INFO, nfc_debug_enabled)
+      << StringPrintf("%s - IC manufacturer:0x%x, Product code:0x%x", __func__,
+                      ic_manuf, pdt_code);
+
+  uint8_t pdt_code_family = 0;
+
+  if (/* (ic_manuf == I93_UID_IC_MFG_CODE_NXP) || */
+      (ic_manuf == I93_UID_IC_MFG_CODE_TI) ||
+      (ic_manuf == I93_UID_IC_MFG_CODE_ONS)) {
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s - I93 legacy product detected", __func__);
+      return true;
+  }
+
+  if (ic_manuf == I93_UID_IC_MFG_CODE_STM) {
+
+    pdt_code_family = pdt_code & I93_IC_REF_STM_MASK;
+    switch (pdt_code_family) {
+      case I93_IC_REF_STM_LRI1K:
+      case I93_PROD_CODE_STM_M24LR04E_R_MASK:
+      case I93_PROD_CODE_STM_LRI2K_MASK:
+      case I93_PROD_CODE_STM_LRIS2K_MASK:
+      case I93_PROD_CODE_STM_LRIS64K_MASK:
+      case I93_PROD_CODE_STM_M24LR16E_R_MASK:
+      case I93_PROD_CODE_STM_M24LR64_R_MASK:
+      case I93_PROD_CODE_STM_M24LR64E_R_MASK:
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s - ISO 15693 legacy product detected", __func__);
+        return true;
+      default:
+        break;
+    }
+  }
+
+  DLOG_IF(INFO, nfc_debug_enabled)
+      << StringPrintf("%s - T5T NFC Forum product detected", __func__);
+  return false;
 }
 
 /*****************************************************************************

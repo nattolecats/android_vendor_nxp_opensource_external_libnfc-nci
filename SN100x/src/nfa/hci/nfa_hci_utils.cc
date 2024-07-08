@@ -2057,8 +2057,7 @@ tNFA_HCI_DYN_PIPE  *nfa_hciu_find_dyn_apdu_pipe_for_host (uint8_t host_id)
         if ((pp->pipe_id != 0) && (pp->dest_host == host_id))
         {
             gate_id = pp->local_gate;
-            pg   = nfa_hciu_find_gate_by_gid (gate_id);
-
+            pg = nfa_hciu_find_gate_by_gid(gate_id);
             if (  (pg != nullptr)
                 &&((gate_id == NFA_HCI_APDU_APP_GATE) || (gate_id == NFA_HCI_GEN_PURPOSE_APDU_APP_GATE))  )
                 return (pp);
@@ -2095,8 +2094,7 @@ tNFA_HCI_DYN_PIPE  *nfa_hciu_find_dyn_conn_pipe_for_host (uint8_t host_id)
         if ((pp->pipe_id != 0) && (pp->dest_host == host_id))
         {
             gate_id = pp->local_gate;
-            pg   = nfa_hciu_find_gate_by_gid (gate_id);
-
+            pg = nfa_hciu_find_gate_by_gid(gate_id);
             if (  (pg != nullptr)
                 &&(gate_id == NFA_HCI_CONNECTIVITY_GATE)  )
                 return (pp);
@@ -2144,6 +2142,16 @@ void nfa_hciu_clear_host_resetting(uint8_t host_id, uint8_t reset_type) {
 *******************************************************************************/
 void nfa_hciu_add_host_resetting(uint8_t host_id, uint8_t reset_type) {
   uint8_t xx;
+
+  for (xx = 0; xx < NFA_HCI_MAX_HOST_IN_NETWORK; xx++) {
+    if (host_id == (nfa_hci_cb.ee_info[xx].ee_handle & ~NFA_HANDLE_GROUP_EE) &&
+        NFA_HCI_FL_EE_ENABLED != nfa_hci_cb.ee_info[xx].hci_enable_state &&
+        reset_type == NFCEE_UNRECOVERABLE_ERRROR) {
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: %d host is disabled", __func__, host_id);
+      return;
+    }
+  }
 
   for (xx = 0; xx < NFA_HCI_MAX_HOST_IN_NETWORK; xx++) {
     if (nfa_hci_cb.reset_host[xx].host_id == host_id) {
@@ -2196,30 +2204,16 @@ bool nfa_hciu_check_host_resetting(uint8_t host_id, uint8_t reset_type) {
 
 /*******************************************************************************
 **
-** Function         nfa_hciu_get_hci_host_id
+** Function         nfa_hciu_check_n_clear_host_resetting
 **
-** Description      This function returns hci host id for given nfceeid
-**
-** Returns          hci host id
+** Description      Clear the resetting host if the recovery for reset_type is
+**                  not in progress
+** Returns          void
 **
 *******************************************************************************/
-uint8_t nfa_hciu_get_hci_host_id(uint8_t nfceeid)
-{
-  switch(nfceeid)
-  {
-    case NFA_HCI_FIRST_DYNAMIC_HOST:
-      return NFA_HCI_UICC_HOST;
-    case NFA_HCI_FIRST_PROP_HOST:
-      return NFA_HCI_FIRST_PROP_HOST;
-    case NFA_HCI_EUICC_HOST:
-      return NFA_HCI_FIRST_PROP_HOST + 1;
-    case NFA_HCI_FIRST_DYNAMIC_HOST + 1:
-      return NFA_HCI_FIRST_DYNAMIC_HOST + 1;
-    case NFA_HCI_FIRST_DYNAMIC_HOST + 2:
-      return NFA_HCI_FIRST_DYNAMIC_HOST + 2;
-    default:
-      return 0x00;
+void nfa_hciu_check_n_clear_host_resetting(uint8_t host_id, uint8_t reset_type) {
+  if (nfa_hciu_check_host_resetting(host_id, reset_type)) {
+    nfa_hciu_clear_host_resetting(host_id, reset_type);
   }
-    return 0x00;
 }
 #endif

@@ -31,7 +31,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  Copyright 2018-2023 NXP
+ *  Copyright 2018-2024 NXP
  *
  ******************************************************************************/
 
@@ -870,7 +870,7 @@ uint8_t* nfc_ncif_decode_rf_params(tNFC_RF_TECH_PARAMS* p_param, uint8_t* p) {
 
   if (NCI_DISCOVERY_TYPE_POLL_A == p_param->mode ||
       (NCI_DISCOVERY_TYPE_POLL_A_ACTIVE == p_param->mode &&
-       NFC_GetNCIVersion() != NCI_VERSION_2_0)) {
+       NFC_GetNCIVersion() < NCI_VERSION_2_0)) {
     p_pa = &p_param->param.pa;
     /*
 SENS_RES Response   2 bytes Defined in [DIGPROT] Available after Technology
@@ -1000,7 +1000,7 @@ Available after Technology Detection
     memcpy(p_pb->nfcid0, p_pb->sensb_res, NFC_NFCID0_MAX_LEN);
   } else if (NCI_DISCOVERY_TYPE_POLL_F == p_param->mode ||
              (NCI_DISCOVERY_TYPE_POLL_F_ACTIVE == p_param->mode &&
-              NFC_GetNCIVersion() != NCI_VERSION_2_0)) {
+              NFC_GetNCIVersion() < NCI_VERSION_2_0)) {
     /*
 Bit Rate    1 byte  1   212 kbps/2   424 kbps/0 and 3 to 255  RFU
 SENSF_RES Response length.(n) 1 byte  Length of SENSF_RES (Byte 2 - Byte 17 or
@@ -1033,7 +1033,7 @@ Available after Technology Detection
     p_pf->mrti_update = p_pf->sensf_res[NCI_MRTI_UPDATE_INDEX];
   } else if (NCI_DISCOVERY_TYPE_LISTEN_F == p_param->mode ||
              (NCI_DISCOVERY_TYPE_LISTEN_F_ACTIVE == p_param->mode &&
-              NFC_GetNCIVersion() != NCI_VERSION_2_0)) {
+              NFC_GetNCIVersion() < NCI_VERSION_2_0)) {
     p_lf = &p_param->param.lf;
 
     if (plen < 1) {
@@ -1543,7 +1543,7 @@ void nfc_ncif_proc_activate(uint8_t* p, uint8_t len) {
 #if (NFC_RW_ONLY == FALSE)
   else if (evt_data.activate.intf_param.type == NCI_INTERFACE_NFC_DEP) {
 #if (NXP_EXTNS == TRUE)
-    if ((NFC_GetNCIVersion() == NCI_VERSION_2_0)) {
+    if ((NFC_GetNCIVersion() >= NCI_VERSION_2_0)) {
       tNFC_RF_ACM_P_PARAMS* acm_p =
           &evt_data.activate.rf_tech_param.param.acm_p;
       NCI_MAX_BUFFER_SIZE(acm_p->max_payload_size, buff_size);
@@ -1556,7 +1556,7 @@ void nfc_ncif_proc_activate(uint8_t* p, uint8_t len) {
     p_pa_nfc = &p_intf->intf_param.pa_nfc;
 
     /* Active mode, no info in activation parameters (NCI 2.0) */
-    if ((NFC_GetNCIVersion() == NCI_VERSION_2_0) &&
+    if ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) &&
         ((mode == NCI_DISCOVERY_TYPE_POLL_ACTIVE) ||
          (mode == NCI_DISCOVERY_TYPE_LISTEN_ACTIVE))) {
         p_pa_nfc->atr_res_len =
@@ -1574,7 +1574,7 @@ void nfc_ncif_proc_activate(uint8_t* p, uint8_t len) {
       if (p_pa_nfc->atr_res_len > NFC_MAX_ATS_LEN)
         p_pa_nfc->atr_res_len = NFC_MAX_ATS_LEN;
 
-      if ((NFC_GetNCIVersion() == NCI_VERSION_2_0) &&
+      if ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) &&
           ((mode == NCI_DISCOVERY_TYPE_POLL_ACTIVE) ||
            (mode == NCI_DISCOVERY_TYPE_LISTEN_ACTIVE))) {
          /* NCI 2.0 : ATR_RES is included in RF technology parameters in active mode */
@@ -1594,8 +1594,8 @@ void nfc_ncif_proc_activate(uint8_t* p, uint8_t len) {
           (mode == NCI_DISCOVERY_TYPE_POLL_F) ||
           ((mode == NCI_DISCOVERY_TYPE_POLL_A_ACTIVE ||
             mode == NCI_DISCOVERY_TYPE_POLL_F_ACTIVE) &&
-           NFC_GetNCIVersion() != NCI_VERSION_2_0) ||
-          (NFC_GetNCIVersion() == NCI_VERSION_2_0 &&
+           NFC_GetNCIVersion() < NCI_VERSION_2_0) ||
+          (NFC_GetNCIVersion() >= NCI_VERSION_2_0 &&
            mode == NCI_DISCOVERY_TYPE_POLL_ACTIVE)) {
         /* ATR_RES
         Byte 3~12 Byte 13 Byte 14 Byte 15 Byte 16 Byte 17 Byte 18~18+n
@@ -1611,10 +1611,10 @@ void nfc_ncif_proc_activate(uint8_t* p, uint8_t len) {
             p_pa_nfc->atr_res[NCI_L_NFC_DEP_TO_INDEX] & 0x0F;
       } else if ((mode == NCI_DISCOVERY_TYPE_LISTEN_A) ||
                  (mode == NCI_DISCOVERY_TYPE_LISTEN_F) ||
-                 (NFC_GetNCIVersion() != NCI_VERSION_2_0 &&
+                 (NFC_GetNCIVersion() < NCI_VERSION_2_0 &&
                   (mode == NCI_DISCOVERY_TYPE_LISTEN_A_ACTIVE ||
                    mode == NCI_DISCOVERY_TYPE_LISTEN_F_ACTIVE)) ||
-                 (NFC_GetNCIVersion() == NCI_VERSION_2_0 &&
+                 (NFC_GetNCIVersion() >= NCI_VERSION_2_0 &&
                   mode == NCI_DISCOVERY_TYPE_LISTEN_ACTIVE)) {
         /* ATR_REQ
         Byte 3~12 Byte 13 Byte 14 Byte 15 Byte 16 Byte 17~17+n
@@ -1630,7 +1630,7 @@ void nfc_ncif_proc_activate(uint8_t* p, uint8_t len) {
       mpl = ((p_pa_nfc->atr_res[mpl_idx]) >> 4) & 0x03;
       p_pa_nfc->max_payload_size = nfc_mpl_code_to_size[mpl];
 #if (NXP_EXTNS == TRUE)
-      if ((NFC_GetNCIVersion() == NCI_VERSION_2_0)) {
+      if ((NFC_GetNCIVersion() >= NCI_VERSION_2_0)) {
         NCI_MAX_BUFFER_SIZE(p_pa_nfc->max_payload_size, buff_size);
       }
 #endif
@@ -1684,7 +1684,33 @@ invalid_packet:
     (*nfc_cb.p_discv_cback)(NFC_ACTIVATE_DEVT, &evt_data);
   }
 }
-
+#if (NXP_EXTNS == TRUE)
+/*******************************************************************************
+**
+** Function         nfc_ncif_proc_removal_detection
+**
+** Description      This function is called to process Poll Removal Detection
+**                  response and notification
+**
+** Returns          void
+**
+*******************************************************************************/
+void nfc_ncif_proc_removal_detection(uint8_t status, bool is_ntf) {
+  /*If Hal close is running in nfc HAL, return.
+  Else it will cause abnormal nfc_state update*/
+  if (nfc_cb.nfc_state == NFC_STATE_W4_HAL_CLOSE) return;
+  tNFC_DISCOVER evt_data;
+  evt_data.removal_detection.status = status;
+  evt_data.removal_detection.is_ntf = is_ntf;
+  if (nfc_cb.p_discv_cback) {
+    (*nfc_cb.p_discv_cback)(NFC_REMOVAL_DETECTION_DEVT, &evt_data);
+  } else {
+    LOG(ERROR) << __func__
+               << "nfc_cb.p_discv_cback is null, Unable to handle Removal "
+                  "Detection rsp/ntf";
+  }
+}
+#endif
 /*******************************************************************************
 **
 ** Function         nfc_ncif_proc_deactivate
@@ -1709,7 +1735,7 @@ void nfc_ncif_proc_deactivate(uint8_t status, uint8_t deact_type, bool is_ntf) {
   evt_data.deactivate.status = status;
   evt_data.deactivate.type = deact_type;
   evt_data.deactivate.is_ntf = is_ntf;
-  if (NFC_GetNCIVersion() == NCI_VERSION_2_0) {
+  if (NFC_GetNCIVersion() >= NCI_VERSION_2_0) {
     evt_data.deactivate.reason = nfc_cb.deact_reason;
   }
 
@@ -2033,9 +2059,9 @@ void nfc_ncif_proc_reset_rsp(uint8_t* p, bool is_ntf) {
     LOG(WARNING) << StringPrintf("reset notification!!:0x%x ", status);
     /* clean up, if the state is OPEN
      * FW does not report reset ntf right now */
-    if (status == NCI2_0_RESET_TRIGGER_TYPE_CORE_RESET_CMD_RECEIVED
+    if (status == NCI2_X_RESET_TRIGGER_TYPE_CORE_RESET_CMD_RECEIVED
 #if(NXP_EXTNS != TRUE)
-            || status == NCI2_0_RESET_TRIGGER_TYPE_POWERED_ON
+            || status == NCI2_X_RESET_TRIGGER_TYPE_POWERED_ON
 #endif
     ) {
       DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
@@ -2276,7 +2302,7 @@ void nfc_data_event(tNFC_CONN_CB* p_cb) {
           p_evt->len--;
           p = (uint8_t*)(p_evt + 1);
           data_cevt.status = *(p + p_evt->offset + p_evt->len);
-          if ((NFC_GetNCIVersion() == NCI_VERSION_2_0) &&
+          if ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) &&
               (p_cb->act_protocol == NCI_PROTOCOL_T2T) &&
               (p_cb->act_interface == NCI_INTERFACE_FRAME)) {
             if ((data_cevt.status != NFC_STATUS_OK) &&
@@ -2288,7 +2314,7 @@ void nfc_data_event(tNFC_CONN_CB* p_cb) {
             }
           }
         }
-        if ((NFC_GetNCIVersion() == NCI_VERSION_2_0) &&
+        if ((NFC_GetNCIVersion() >= NCI_VERSION_2_0) &&
             (p_cb->act_protocol == NCI_PROTOCOL_T5T)) {
           p_evt->len--;
           p = (uint8_t*)(p_evt + 1);
@@ -2542,6 +2568,31 @@ tNFC_FW_VERSION nfc_ncif_getFWVersion() { return nfc_fw_version; }
 
 /*******************************************************************************
 **
+** Function         set_default_power_state_for_active_ee()
+**
+** Description      It is called from nfc_ncif_credit_ntf_timeout to perform
+**                  set EE power link to POWER_ALWAYS_ON (for eSE & eUICCs).
+**
+** Returns          void
+**
+*******************************************************************************/
+void set_default_power_state_for_active_ee() {
+  uint8_t nfcee_id = 0xFF;
+  switch(nfa_hci_cb.pipe_in_use) {
+    case NFA_HCI_APDUESE_PIPE:
+      nfcee_id = NFA_HCI_HOST_ID_PROP_HOST0;
+    break;
+    case NFA_HCI_APDU_EUICC_PIPE:
+      if (nfa_hciu_is_active_host(NFA_HCI_EUICC1_HOST)) {
+        nfcee_id = NFA_HCI_EUICC1_HOST;
+      } else { nfcee_id = NFA_HCI_EUICC2_HOST; }
+    break;
+  }
+  if (nfcee_id != 0xFF)
+    nci_snd_nfcee_power_link_control(nfcee_id, 0x01);
+}
+/*******************************************************************************
+**
 ** Function         nfc_ncif_credit_ntf_timeout
 **
 ** Description      Handle a credit ntf  timeout
@@ -2566,7 +2617,7 @@ void nfc_ncif_credit_ntf_timeout() {
   p_cb = nfc_find_conn_cb_by_conn_id(NFC_RF_CONN_ID);
   if (p_cb && (p_cb->num_buff != NFC_CONN_NO_FC) && (p_cb->num_buff == 0))
     p_cb->num_buff++;
-  nci_snd_nfcee_power_link_control(NFA_HCI_HOST_ID_PROP_HOST0, 0x01);
+  set_default_power_state_for_active_ee();
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("cmd timeout sending core reset!!!");
   nfc_ncif_cmd_timeout();

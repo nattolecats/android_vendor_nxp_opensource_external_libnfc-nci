@@ -42,6 +42,7 @@
 #ifndef NFA_HCI_INT_H
 #define NFA_HCI_INT_H
 
+#include <cstdint>
 #include <string>
 #include "nfa_ee_api.h"
 #include "nfa_hci_api.h"
@@ -62,17 +63,35 @@ extern uint8_t HCI_LOOPBACK_DEBUG;
 
 #define NFA_HCI_HOST_ID_DYNAMIC_HOST0 0x80 /*Host ID for prop dyn host 0*/
 #define NFA_HCI_HOST_ID_PROP_HOST0 0xC0 /*Host ID for prop eSE 0*/
+#define NFA_HCI_MAX_NUM_PROP_HOST 0x03  /* Number of prop EE supported */
+#define NFA_HCI_MAX_NUM_DYNAMIC_HOST 0x03 /* Number of Dynamic EE supported */
+/* Host ID for UICC 0 */
+#define NFA_HCI_FIRST_UICC_HOST NFA_HCI_HOST_ID_UICC0
+#define NFA_HCI_LAST_UICC_HOST \
+  (NFA_HCI_HOST_ID_UICC0 + NFA_HCI_MAX_NUM_UICC_HOST - 1)
+/* Host ID for PROP HOST 0 */
+#define NFA_HCI_FIRST_PROP_HOST NFA_HCI_HOST_ID_PROP_HOST0
+#define NFA_HCI_LAST_PROP_HOST \
+  (NFA_HCI_HOST_ID_PROP_HOST0 + NFA_HCI_MAX_NUM_PROP_HOST - 1)
+/* Host ID for DYN HOST 0 */
+#define NFA_HCI_FIRST_DYNAMIC_HOST NFA_HCI_HOST_ID_DYNAMIC_HOST0
+#define NFA_HCI_LAST_DYNAMIC_HOST \
+  (NFA_HCI_HOST_ID_DYNAMIC_HOST0 + NFA_HCI_MAX_NUM_DYNAMIC_HOST - 1)
+/* Host ID for eUICC1 */
+#define NFA_HCI_EUICC1_HOST (NFA_HCI_FIRST_PROP_HOST + 1)
+/* Host ID for eUICC2 */
+#define NFA_HCI_EUICC2_HOST (NFA_HCI_FIRST_PROP_HOST + 2)
 
-#define NFA_HCI_FIRST_UICC_HOST         NFA_HCI_HOST_ID_UICC0 /* Host ID for UICC 0 */
-#define NFA_HCI_LAST_UICC_HOST          (NFA_HCI_HOST_ID_UICC0 + NFA_HCI_MAX_NUM_UICC_HOST - 1)
+#define IS_PROP_EUICC_HOST(host_id) \
+  ((NFA_HCI_FIRST_PROP_HOST < host_id) && (NFA_HCI_LAST_PROP_HOST >= host_id))
 
-#define NFA_HCI_FIRST_PROP_HOST         NFA_HCI_HOST_ID_PROP_HOST0 /* Host ID for PROP HOST 0 */
-#define NFA_HCI_LAST_PROP_HOST          (NFA_HCI_HOST_ID_PROP_HOST0 + NFA_HCI_MAX_NUM_PROP_HOST - 1)
-
-#define NFA_HCI_FIRST_DYNAMIC_HOST      NFA_HCI_HOST_ID_DYNAMIC_HOST0 /* Host ID for DYN HOST 0 */
-#define NFA_HCI_LAST_DYNAMIC_HOST       (NFA_HCI_HOST_ID_DYNAMIC_HOST0 + NFA_HCI_MAX_NUM_PROP_HOST - 1)
-
-#define NFA_HCI_EUICC_HOST (NFA_HCI_FIRST_PROP_HOST + 1) /*Host ID for eUICC*/
+#define IS_PROP_HOST(host_id) \
+  ((NFA_HCI_FIRST_PROP_HOST <= host_id) && (NFA_HCI_LAST_PROP_HOST >= host_id))
+#define IS_DYNAMIC_HOST(host_id)              \
+  ((NFA_HCI_FIRST_DYNAMIC_HOST <= host_id) && \
+   (NFA_HCI_LAST_DYNAMIC_HOST >= host_id))
+#define IS_VALID_HOST(host_id) \
+  (IS_PROP_HOST(host_id) || IS_DYNAMIC_HOST(host_id))
 
 /* Static pipes - ADMIN Pipe, Link Management pipe and Static APDU pipes */
 #define NFA_HCI_MAX_NUM_STATIC_PIPES         (2)
@@ -91,10 +110,12 @@ extern uint8_t HCI_LOOPBACK_DEBUG;
 #define NFA_HCI_CONN_ESE_PIPE 0x16
 /*Default APDUpipe ID for prop host eSE*/
 #define NFA_HCI_APDUESE_PIPE 0x19
-/*Default conn pipe ID for prop host eUICC*/
-#define NFA_HCI_CONN_EUICC_PIPE 0x2B
-/*Default APDUpipe ID for prop host eUICC*/
+/*Default APDUpipe ID for prop host eUICCs*/
 #define NFA_HCI_APDU_EUICC_PIPE 0x27
+/*Default conn pipe ID for prop host eUICC1*/
+#define NFA_HCI_CONN_EUICC1_PIPE 0x2B
+/*Default conn pipe ID for prop host eUICC2*/
+#define NFA_HCI_CONN_EUICC2_PIPE 0x2F
 #endif
 /* HCI SW Version number                       */
 #define NFA_HCI_VERSION_SW 0x090000
@@ -138,7 +159,8 @@ extern uint8_t HCI_LOOPBACK_DEBUG;
 #define NFCEE_REMOVED_NTF                       0x04
 /*NFCEE Initialization completed status notification received*/
 #define NFCEE_INIT_COMPLETED                    0x08
-
+/*NFCEE unrecoverable error handling triggered*/
+#define NFCEE_RECOVERY_IN_PROGRESS 0x20
 #define NFA_HCI_MAX_RSP_WAIT_TIME 0x0C
 /* After the reception of WTX, maximum response timeout value is 30 sec */
 #define NFA_HCI_CHAIN_PKT_RSP_TIMEOUT 30000
@@ -215,13 +237,13 @@ enum {
   NFA_HCI_API_SEND_CMD_EVT,        /* Send command via pipe */
   NFA_HCI_API_SEND_RSP_EVT,        /* Application Response to a command */
 #if(NXP_EXTNS == TRUE)
-  NFA_HCI_API_SEND_APDU_EVT,                                    /* Send Command APDU on APDU Pipe */
-  NFA_HCI_API_ABORT_APDU_EVT,                                   /* Abort the Command APDU sent on APDU Pipe */
-#endif  
+  NFA_HCI_API_SEND_APDU_EVT,  /* Send Command APDU on APDU Pipe */
+  NFA_HCI_API_ABORT_APDU_EVT, /* Abort the Command APDU sent on APDU Pipe */
+#endif
   NFA_HCI_API_SEND_EVENT_EVT, /* Send event via pipe */
-  NFA_HCI_RSP_NV_READ_EVT,           /* Non volatile read complete event */
-  NFA_HCI_RSP_NV_WRITE_EVT,          /* Non volatile write complete event */
-  NFA_HCI_RSP_TIMEOUT_EVT,           /* Timeout to response for the HCP Command packet */
+  NFA_HCI_RSP_NV_READ_EVT,    /* Non volatile read complete event */
+  NFA_HCI_RSP_NV_WRITE_EVT,   /* Non volatile write complete event */
+  NFA_HCI_RSP_TIMEOUT_EVT, /* Timeout to response for the HCP Command packet */
   NFA_HCI_CHECK_QUEUE_EVT
 };
 
@@ -689,10 +711,11 @@ extern void nfa_hci_enable_one_nfcee(void);
 */
 extern void nfa_hci_check_pending_api_requests(void);
 extern void nfa_hci_check_api_requests(void);
-extern void nfa_hci_handle_admin_gate_cmd(uint8_t* p_data);
+extern void nfa_hci_handle_admin_gate_cmd(uint8_t* p_data, uint16_t data_len);
 extern void nfa_hci_handle_admin_gate_rsp(uint8_t* p_data, uint8_t data_len);
 extern void nfa_hci_handle_admin_gate_evt();
-extern void nfa_hci_handle_link_mgm_gate_cmd(uint8_t* p_data);
+extern void nfa_hci_handle_link_mgm_gate_cmd(uint8_t* p_data,
+                                             uint16_t data_len);
 extern void nfa_hci_handle_dyn_pipe_pkt(uint8_t pipe, uint8_t* p_data,
                                         uint16_t data_len);
 extern void nfa_hci_handle_pipe_open_close_cmd(tNFA_HCI_DYN_PIPE* p_pipe);
@@ -788,9 +811,9 @@ extern void nfa_hciu_update_host_list (uint8_t data_len, uint8_t *p_host_list);
 extern void nfa_hciu_add_host_resetting(uint8_t host_id, uint8_t reset_cfg);
 extern void nfa_hciu_clear_host_resetting(uint8_t host_id, uint8_t reset_cfg);
 extern void nfa_hci_handle_pending_host_reset();
-extern uint8_t nfa_hciu_get_hci_host_id(uint8_t nfceeid);
 extern void nfa_hci_handle_control_evt(tNFC_CONN_EVT event,tNFC_CONN* p_data);
 extern bool nfa_hciu_check_host_resetting(uint8_t host_id, uint8_t reset_type);
+extern void nfa_hciu_check_n_clear_host_resetting(uint8_t host_id, uint8_t reset_type);
 #endif
 #define VERBOSE_BUFF_SIZE 100
 #endif /* NFA_HCI_INT_H */

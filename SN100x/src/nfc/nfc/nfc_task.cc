@@ -41,26 +41,18 @@
  *  Entry point for NFC_TASK
  *
  ******************************************************************************/
-#include <string.h>
-
 #include <android-base/stringprintf.h>
 #include <base/logging.h>
-
-#include "nfc_target.h"
+#include <string.h>
 
 #include "bt_types.h"
 #include "ce_int.h"
 #include "gki.h"
 #include "nci_hmsgs.h"
-#include "nfc_int.h"
-#include "rw_int.h"
-#if (NFC_RW_ONLY == FALSE)
-#include "llcp_int.h"
-#else
-#define llcp_cleanup()
-#endif
-
 #include "nfa_dm_int.h"
+#include "nfc_int.h"
+#include "nfc_target.h"
+#include "rw_int.h"
 
 using android::base::StringPrintf;
 
@@ -282,14 +274,6 @@ void nfc_process_quick_timer_evt(void) {
     GKI_remove_from_timer_list(&nfc_cb.quick_timer_queue, p_tle);
 
     switch (p_tle->event) {
-#if (NFC_RW_ONLY == FALSE)
-      case NFC_TTYPE_LLCP_LINK_MANAGER:
-      case NFC_TTYPE_LLCP_LINK_INACT:
-      case NFC_TTYPE_LLCP_DATA_LINK:
-      case NFC_TTYPE_LLCP_DELAY_FIRST_PDU:
-        llcp_process_timeout(p_tle);
-        break;
-#endif
       case NFC_TTYPE_RW_T1T_RESPONSE:
         rw_t1t_process_timeout(p_tle);
         break;
@@ -304,12 +288,6 @@ void nfc_process_quick_timer_evt(void) {
         break;
       case NFC_TTYPE_RW_I93_RESPONSE:
         rw_i93_process_timeout(p_tle);
-        break;
-      case NFC_TTYPE_P2P_PRIO_RESPONSE:
-        nfa_dm_p2p_timer_event();
-        break;
-      case NFC_TTYPE_P2P_PRIO_LOGIC_CLEANUP:
-        nfa_dm_p2p_prio_logic_cleanup();
         break;
       case NFC_TTYPE_RW_MFC_RESPONSE:
         rw_mfc_process_timeout(p_tle);
@@ -364,7 +342,6 @@ void nfc_task_shutdown_nfcc(void) {
     nfc_cb.p_hal->close();
 
     /* Perform final clean up */
-    llcp_cleanup();
 
     /* Stop the timers */
     GKI_stop_timer(NFC_TIMER_ID);
@@ -395,7 +372,7 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
   /* main loop */
   while (true) {
     event = GKI_wait(0xFFFF, 0);
-    if (event == EVENT_MASK(GKI_SHUTDOWN_EVT)) {
+    if (event & EVENT_MASK(GKI_SHUTDOWN_EVT)) {
       break;
     }
     /* Handle NFC_TASK_EVT_TRANSPORT_READY from NFC HAL */
@@ -407,22 +384,16 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
       nfc_set_state(NFC_STATE_CORE_INIT);
 
       /* Reset NCI configurations base on NAME_NCI_RESET_TYPE setting */
-      if (nfc_nci_reset_type == 0x02
-#if (NXP_EXTNS == TRUE)
-          || nfc_nci_reset_keep_cfg_enabled
-#endif
-      ) {
+      if (nfc_nci_reset_type == 0x02 || nfc_nci_reset_keep_cfg_enabled) {
         /* 0x02, keep configurations. */
         nci_snd_core_reset(NCI_RESET_TYPE_KEEP_CFG);
         nfc_nci_reset_keep_cfg_enabled = true;
       } else if (nfc_nci_reset_type == 0x01 &&
                  !nfc_nci_reset_keep_cfg_enabled) {
         /* 0x01, reset configurations only once every boot. */
-#if (NXP_EXTNS == TRUE)
+
         nci_snd_core_reset(NCI_RESET_TYPE_RESET_CFG);
-#else
-        nci_snd_core_reset(NCI_RESET_TYPE_KEEP_CFG);
-#endif
+
         nfc_nci_reset_keep_cfg_enabled = true;
       } else {
         /* Default, reset configurations every time*/
@@ -489,12 +460,6 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
     if (event & NFA_TIMER_EVT_MASK) {
       nfa_sys_timer_update();
     }
-
-#if(NXP_EXTNS == TRUE)
-    if (event & EVENT_MASK(GKI_SHUTDOWN_EVT)) {
-      break;
-    }
-#endif
   }
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("nfc_task terminated");
